@@ -6,11 +6,11 @@ export const dynamic = 'force-dynamic';
 
 export const GET = conRol(LOGISTICA, async () => {
   const choferes = await sql`
-    SELECT id, nombre || ' ' || apellido AS nombre FROM choferes WHERE activo = true ORDER BY apellido, nombre
+    SELECT id, nombre || ' ' || apellido AS nombre FROM choferes WHERE activo IS NOT FALSE ORDER BY apellido, nombre
   `;
 
   const vehiculos = await sql`
-    SELECT patente, marca, modelo, km_actual FROM vehiculos WHERE activo = true ORDER BY patente
+    SELECT patente, marca, modelo, km_actual FROM vehiculos WHERE activo IS NOT FALSE ORDER BY patente
   `;
 
   const clientes = await sql`
@@ -25,6 +25,7 @@ export const GET = conRol(LOGISTICA, async () => {
 
   return ok({ choferes, vehiculos, clientes });
 });
+
 // tipo: vehiculo | chofer | cliente | direccion
 export const POST = conRol(LOGISTICA, async (req) => {
   const { tipo, datos: d } = await req.json();
