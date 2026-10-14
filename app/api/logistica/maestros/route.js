@@ -15,17 +15,19 @@ export const GET = conRol(LOGISTICA, async () => {
 
   const clientes = await sql`
     SELECT c.id, c.razon_social,
-      COALESCE((SELECT json_agg(json_build_object('id', d.id,
-                'label', COALESCE(d.alias || ' - ', '') || d.direccion || COALESCE(', ' || d.localidad, ''))
-                ORDER BY d.principal DESC, d.id)) 
-      FROM direcciones_cliente d WHERE d.cliente_id = c.id), '[]'::json) AS direcciones 
+      COALESCE((
+        SELECT json_agg(json_build_object('id', d.id,
+                  'label', COALESCE(d.alias || ' - ', '') || d.direccion || COALESCE(', ' || d.localidad, ''))
+                  ORDER BY d.principal DESC, d.id) 
+        FROM direcciones_cliente d 
+        WHERE d.cliente_id = c.id
+      ), '[]'::json) AS direcciones 
     FROM clientes c 
     ORDER BY c.razon_social
   `;
 
   return ok({ choferes, vehiculos, clientes });
 });
-
 // tipo: vehiculo | chofer | cliente | direccion
 export const POST = conRol(LOGISTICA, async (req) => {
   const { tipo, datos: d } = await req.json();
