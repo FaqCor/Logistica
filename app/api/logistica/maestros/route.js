@@ -6,7 +6,8 @@ export const dynamic = 'force-dynamic';
 
 export const GET = conRol(LOGISTICA, async () => {
   const choferes = await sql`
-    SELECT id, nombre || ' ' || apellido AS nombre, telefono_wsp FROM choferes WHERE activo ORDER BY apellido, nombre`;
+   const choferes = await sql`
+  SELECT id, nombre || ' ' || apellido AS nombre FROM choferes WHERE activo = true ORDER BY apellido, nombre`;
   const vehiculos = await sql`
     SELECT patente, marca, modelo, km_actual FROM vehiculos WHERE activo ORDER BY patente`;
   const clientes = await sql`
