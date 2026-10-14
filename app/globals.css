@@ -1,0 +1,132 @@
+:root {
+  --papel: #eceff0;
+  --hoja: #ffffff;
+  --tinta: #14201c;
+  --suave: #5d6b66;
+  --linea: #d3dad7;
+  --ruta: #0f4d3a;        /* verde de cartelería vial */
+  --ruta-osc: #0a3a2b;
+  --ruta-tenue: #dcebe5;
+  --senal: #f2c200;       /* amarillo de señal */
+  --ok: #1f7a4d;
+  --alerta: #a86400;
+  --mal: #b5322a;
+  --patente: #1b4f9c;
+  --f-cuerpo: 'Barlow', system-ui, sans-serif;
+  --f-titulo: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: var(--f-cuerpo), system-ui, sans-serif;
+  background: var(--papel);
+  color: var(--tinta);
+  font-size: 17px;
+  line-height: 1.4;
+  -webkit-text-size-adjust: 100%;
+}
+h1, h2, h3 { font-family: var(--f-titulo), sans-serif; font-weight: 600; margin: 0; letter-spacing: .01em; line-height: 1.1; }
+h1 { font-size: 2rem; } h2 { font-size: 1.5rem; } h3 { font-size: 1.2rem; }
+a { color: var(--ruta); }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--senal); outline-offset: 2px; }
+.muted { color: var(--suave); } .small { font-size: .88rem; }
+.num { font-variant-numeric: tabular-nums; }
+.stack > * + * { margin-top: 12px; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.row.between { justify-content: space-between; }
+.grow { flex: 1; }
+
+/* ---------- Barra superior y patente ---------- */
+.topbar { background: var(--ruta); color: #fff; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; position: sticky; top: 0; z-index: 20; }
+.topbar h1 { font-size: 1.35rem; color: #fff; }
+.topbar .btn-ghost { color: #fff; border-color: #ffffff66; }
+.patente { display: inline-block; background: #fff; color: #111; border: 2px solid #111; border-top: 9px solid var(--patente); border-radius: 5px; font-family: var(--f-titulo), sans-serif; font-weight: 700; font-size: 1.45rem; letter-spacing: .08em; padding: 0 10px; line-height: 1.25; }
+.patente.sm { font-size: 1rem; border-top-width: 6px; padding: 0 7px; }
+
+/* ---------- Contenedores ---------- */
+.contenedor { max-width: 640px; margin: 0 auto; padding: 14px 14px 96px; }
+.contenedor.ancho { max-width: 1120px; padding-bottom: 40px; }
+.card { background: var(--hoja); border: 1px solid var(--linea); border-radius: 8px; padding: 14px; }
+.card.alerta { border-left: 6px solid var(--senal); }
+.card.cerrada { opacity: .75; }
+
+/* ---------- Botones ---------- */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; padding: 0 18px; border-radius: 10px; border: 2px solid var(--tinta); background: var(--hoja); font-weight: 600; cursor: pointer; text-decoration: none; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn-primary { background: var(--ruta); border-color: var(--ruta); color: #fff; }
+.btn-primary:active { background: var(--ruta-osc); }
+.btn-senal { background: var(--senal); border-color: var(--senal); color: #2a2100; }
+.btn-ghost { background: transparent; border-color: var(--linea); }
+.btn-mal { background: var(--mal); border-color: var(--mal); color: #fff; }
+.btn.sm { min-height: 38px; padding: 0 12px; font-size: .95rem; }
+.btn.block { width: 100%; }
+
+/* ---------- Formularios ---------- */
+.field { display: block; }
+.field > span { display: block; font-size: .9rem; font-weight: 600; margin-bottom: 4px; }
+input, select, textarea { width: 100%; min-height: 48px; padding: 10px 12px; border: 2px solid var(--linea); border-radius: 8px; background: #fff; }
+textarea { min-height: 84px; resize: vertical; }
+input:focus, select:focus, textarea:focus { border-color: var(--ruta); outline: none; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; align-items: end; }
+.form-grid > .aviso, .form-grid > button { grid-column: 1 / -1; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 2px solid var(--tinta); border-radius: 10px; overflow: hidden; }
+.seg button { min-height: 48px; border: 0; border-right: 2px solid var(--tinta); background: #fff; font-weight: 600; cursor: pointer; padding: 0 6px; }
+.seg button:last-child { border-right: 0; }
+.seg button.on { background: var(--ruta); color: #fff; }
+.seg.mal button.on { background: var(--mal); }
+.seg.wrap { grid-auto-flow: row; grid-template-columns: 1fr 1fr; }
+.seg.wrap button { border-bottom: 2px solid var(--tinta); }
+
+/* ---------- Estados ---------- */
+.badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: .85rem; font-weight: 600; background: var(--linea); }
+.badge.ok { background: #d5ecdf; color: var(--ok); }
+.badge.warn { background: #fbe9c4; color: var(--alerta); }
+.badge.bad { background: #f6d6d3; color: var(--mal); }
+.badge.info { background: #d9e5f6; color: var(--patente); }
+.aviso { padding: 10px 12px; border-radius: 8px; font-weight: 500; }
+.aviso.bad { background: #f6d6d3; color: #7d1f19; }
+.aviso.ok { background: #d5ecdf; color: #12522f; }
+.aviso.info { background: #fbf0c2; color: #4d3d00; }
+
+/* ---------- Navegación inferior (chofer) ---------- */
+.navinf { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 2px solid var(--tinta); display: grid; grid-template-columns: repeat(4, 1fr); z-index: 30; padding-bottom: env(safe-area-inset-bottom, 0); }
+.navinf button { min-height: 60px; border: 0; background: transparent; font-weight: 600; cursor: pointer; border-top: 5px solid transparent; }
+.navinf button.on { border-top-color: var(--senal); background: var(--ruta-tenue); color: var(--ruta-osc); }
+
+/* ---------- Hoja inferior (registrar pedido) ---------- */
+.velo { position: fixed; inset: 0; background: #0009; z-index: 40; display: flex; align-items: flex-end; justify-content: center; }
+.hoja { background: #fff; width: 100%; max-width: 640px; max-height: 92vh; overflow-y: auto; border-radius: 16px 16px 0 0; padding: 16px 16px 28px; animation: sube .18s ease-out; }
+@keyframes sube { from { transform: translateY(24px); opacity: .6; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .hoja { animation: none; } }
+
+/* ---------- Checklist ---------- */
+.item-chk { border: 2px solid var(--linea); border-radius: 8px; padding: 10px; background: #fff; }
+.item-chk.falla { border-color: var(--mal); }
+.item-chk .nombre { font-weight: 600; margin-bottom: 8px; }
+
+/* ---------- Pedido ---------- */
+.pedido { display: block; }
+.pedido .cab { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.pedido .nro { font-family: var(--f-titulo), sans-serif; font-weight: 700; font-size: 1.15rem; }
+.pedido .cliente { font-weight: 600; font-size: 1.1rem; }
+.progreso { height: 10px; background: var(--linea); border-radius: 6px; overflow: hidden; }
+.progreso > i { display: block; height: 100%; background: var(--ok); }
+
+/* ---------- Panel de logística ---------- */
+.tabs { display: flex; gap: 4px; overflow-x: auto; background: var(--ruta-osc); padding: 0 12px; }
+.tabs button { border: 0; background: transparent; color: #cfe3da; min-height: 48px; padding: 0 16px; font-weight: 600; cursor: pointer; border-bottom: 5px solid transparent; white-space: nowrap; }
+.tabs button.on { color: #fff; border-bottom-color: var(--senal); }
+.tabs .cuenta { background: var(--senal); color: #2a2100; border-radius: 999px; padding: 0 7px; margin-left: 6px; font-size: .85rem; }
+.tabla { width: 100%; border-collapse: collapse; }
+.tabla th, .tabla td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--linea); vertical-align: top; }
+.tabla th { font-size: .9rem; color: var(--suave); font-weight: 600; }
+.tabla td.der, .tabla th.der { text-align: right; }
+.scroll-x { overflow-x: auto; }
+details > summary { cursor: pointer; font-weight: 600; min-height: 40px; display: flex; align-items: center; }
+.grilla2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; }
+
+/* ---------- Login ---------- */
+.login { min-height: 100vh; display: grid; place-items: center; padding: 20px; background: var(--ruta); }
+.login .card { width: 100%; max-width: 380px; padding: 22px; }
+.login h1 { margin-bottom: 4px; }
