@@ -3,12 +3,11 @@ import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 
 export default function Panel({ email }) {
-  // Detección de sesión de chofer
   const esChofer = email && (email.toLowerCase().includes('chofer') || email.toLowerCase().includes('driver')); 
 
   const [pestanaActiva, setPestanaActiva] = useState('gestion');
 
-  // Estado del checklist obligatorio del vehículo
+  // Estado del checklist
   const [checklistEnviado, setChecklistEnviado] = useState(false);
   const [kmChecklist, setKmChecklist] = useState('54000');
   const [observacionesChecklist, setObservacionesChecklist] = useState('');
@@ -18,7 +17,7 @@ export default function Panel({ email }) {
   const hoy = new Date();
   const fechaFormateada = `${hoy.getDate().toString().padStart(2, '0')}/${(hoy.getMonth() + 1).toString().padStart(2, '0')}/${hoy.getFullYear()}`;
 
-  // Estados de datos de la BD e importación
+  // Estados de datos
   const [modalAbierto, setModalAbierto] = useState(false);
   const [datosExcel, setDatosExcel] = useState([]);
   const [importando, setImportando] = useState(false);
@@ -27,7 +26,7 @@ export default function Panel({ email }) {
   const [pedidosAsignados, setPedidosAsignados] = useState([]);
   const [pedidoSeleccionado, setPedidoSeleccionado] = useState('');
 
-  // Lista de choferes y vehículos
+  // Flota y choferes
   const listaChoferes = [
     { id: 1, nombre: 'Juan Pérez (chofer@demo.com)' },
     { id: 2, nombre: 'Carlos Gómez' },
@@ -43,16 +42,16 @@ export default function Panel({ email }) {
   const [choferSeleccionado, setChoferSeleccionado] = useState(listaChoferes[0].nombre);
   const [vehiculoSeleccionado, setVehiculoSeleccionado] = useState(flotaVehiculos[0].dominio);
 
-  // Pedidos de prueba predeterminados
+  // Pedidos iniciales
   const pedidosEjemplo = [
-    { id: 101, cliente: 'Ferretería El Norte', provincia: 'Salta', localidad: 'General Güemes', direccion: 'Av. San Martín 450', bultos: 12, monto: 185000, kmDesdeCD: 50, estado_entrega: 'Pendiente' },
-    { id: 102, cliente: 'Corralón San Miguel', provincia: 'Tucumán', localidad: 'San Miguel de Tucumán', direccion: 'Av. Kirchner 1200', bultos: 45, monto: 620000, kmDesdeCD: 310, estado_entrega: 'Pendiente' },
-    { id: 103, cliente: 'Distribuidora del Centro', provincia: 'Santiago del Estero', localidad: 'Santiago Capital', direccion: 'Belgrano Sur 890', bultos: 30, monto: 410000, kmDesdeCD: 470, estado_entrega: 'Pendiente' }
+    { id: 101, cliente: 'Ferretería El Norte', provincia: 'Salta', localidad: 'General Güemes', direccion: 'Av. San Martín 450', bultos: 12, monto: 185000, kmDesdeCD: 50, estado_entrega: 'Pendiente', monto_total_cobrado: 0, gasto_total: 0 },
+    { id: 102, cliente: 'Corralón San Miguel', provincia: 'Tucumán', localidad: 'San Miguel de Tucumán', direccion: 'Av. Kirchner 1200', bultos: 45, monto: 620000, kmDesdeCD: 310, estado_entrega: 'Pendiente', monto_total_cobrado: 0, gasto_total: 0 },
+    { id: 103, cliente: 'Distribuidora del Centro', provincia: 'Santiago del Estero', localidad: 'Santiago Capital', direccion: 'Belgrano Sur 890', bultos: 30, monto: 410000, kmDesdeCD: 470, estado_entrega: 'Pendiente', monto_total_cobrado: 0, gasto_total: 0 }
   ];
 
   const [kmTotalRuta, setKmTotalRuta] = useState(0);
 
-  // Modal de Cierre de Pedido / Gastos
+  // Modales
   const [modalCierreAbierto, setModalCierreAbierto] = useState(false);
   const [pedidoACerrar, setPedidoACerrar] = useState(null);
   const [estadoEntrega, setEstadoEntrega] = useState('Entregado');
@@ -61,11 +60,9 @@ export default function Panel({ email }) {
   const [montoCheque, setMontoCheque] = useState('');
   const [kmEntregaInterurbana, setKmEntregaInterurbana] = useState('');
 
-  // Modal de Cierre Final del Viaje Completo (para Salta Capital)
   const [modalCierreFinalViaje, setModalCierreFinalViaje] = useState(false);
   const [kmFinalViajeSalta, setKmFinalViajeSalta] = useState('');
 
-  // Viáticos / Gastos
   const [gastos, setGastos] = useState({
     desayuno: '',
     almuerzo: '',
@@ -75,24 +72,34 @@ export default function Panel({ email }) {
     otros: ''
   });
 
+  // Cargar pedidos desde la BD
   const cargarPedidos = async () => {
     try {
       const res = await fetch('/api/pedidos');
-      if (!res.ok) throw new Error('Error al conectar con la API');
+      if (!res.ok) throw new Error('Error de conexión');
       const data = await res.json();
       if (data.success && Array.isArray(data.pedidos) && data.pedidos.length > 0) {
         setPedidosBD(data.pedidos);
-      } else {
-        setPedidosBD(pedidosEjemplo);
       }
     } catch (err) {
-      setPedidosBD(pedidosEjemplo);
+      console.warn('Utilizando datos locales o cargados previamente.');
     }
   };
 
   useEffect(() => {
     cargarPedidos();
   }, []);
+
+  // SINCRONIZACIÓN EN TIEMPO REAL: Refresca pedidos al cambiar a 'reportes' o mediante polling continuo
+  useEffect(() => {
+    if (!esChofer) {
+      cargarPedidos();
+      const interval = setInterval(() => {
+        cargarPedidos();
+      }, 5000); // Consulta cada 5 segundos
+      return () => clearInterval(interval);
+    }
+  }, [pestanaActiva, esChofer]);
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
@@ -140,13 +147,14 @@ export default function Panel({ email }) {
       if (pedidosAsignados.length === 0) {
         setPedidosAsignados(pedidosBD.length > 0 ? pedidosBD : pedidosEjemplo);
       }
-      alert('¡Checklist enviado correctamente! Ya puedes visualizar tu ruta y vehículo asignado.');
+      alert('¡Checklist enviado correctamente!');
     }, 600);
   };
 
   const agregarPedidoRuta = () => {
     if (!pedidoSeleccionado) return;
-    const pedidoObj = pedidosBD.find(p => p.id.toString() === pedidoSeleccionado.toString());
+    const listado = pedidosBD.length > 0 ? pedidosBD : pedidosEjemplo;
+    const pedidoObj = listado.find(p => p.id.toString() === pedidoSeleccionado.toString());
     if (pedidoObj && !pedidosAsignados.some(p => p.id === pedidoObj.id)) {
       setFlotaVehiculos(flotaVehiculos.map(v => v.dominio === vehiculoSeleccionado ? { ...v, estado: 'En Viaje' } : v));
       setPedidosAsignados([...pedidosAsignados, pedidoObj]);
@@ -155,7 +163,7 @@ export default function Panel({ email }) {
   };
 
   const optimizarRutaOrdenada = () => {
-    const listaAOptimar = pedidosAsignados.length > 0 ? pedidosAsignados : pedidosBD;
+    const listaAOptimar = pedidosAsignados.length > 0 ? pedidosAsignados : (pedidosBD.length > 0 ? pedidosBD : pedidosEjemplo);
     if (listaAOptimar.length === 0) {
       alert('Agrega al menos un pedido a la ruta para optimizar.');
       return;
@@ -171,13 +179,18 @@ export default function Panel({ email }) {
     alert(`¡Ruta optimizada!\nKilometraje total de ruta estimado: ${kmTotalCalculado} km.`);
   };
 
-  // Guardar cierre de un pedido individual (con km si es de otra provincia)
+  // Guardar Cierre de Entrega por el Chofer (Actualiza BD y Estado Local)
   const guardarCierreChofer = async () => {
     if (!pedidoACerrar) return;
 
     const esOtraProvincia = (pedidoACerrar.provincia || 'Salta').toLowerCase() !== 'salta';
-    const kmPedido = esOtraProvincia ? (parseFloat(kmEntregaInterurbana) || pedidoACerrar.kmDesdeCD || 0) : 0;
+    const kmPedido = esOtraProvincia ? (parseFloat(kmEntregaInterurbana) || pedidoACerrar.kmDesdeCD || 0) : (pedidoACerrar.kmDesdeCD || 0);
     
+    const ef = parseFloat(montoEfectivo) || 0;
+    const tr = parseFloat(montoTransferencia) || 0;
+    const ch = parseFloat(montoCheque) || 0;
+    const totalCobrado = ef + tr + ch;
+
     const totalGastosPedido = 
       (parseFloat(gastos.desayuno) || 0) + 
       (parseFloat(gastos.almuerzo) || 0) + 
@@ -193,28 +206,32 @@ export default function Panel({ email }) {
         body: JSON.stringify({
           pedidoId: pedidoACerrar.id,
           estadoEntrega,
-          efectivo: montoEfectivo || 0,
-          transferencia: montoTransferencia || 0,
-          cheque: montoCheque || 0,
+          efectivo: ef,
+          transferencia: tr,
+          cheque: ch,
           gastos,
           kmRecorridos: kmPedido
         })
       });
       alert(`¡Pedido #${pedidoACerrar.id} registrado correctamente!`);
     } catch (err) {
-      alert(`Pedido #${pedidoACerrar.id} actualizado.`);
+      console.warn('Error guardando en backend, actualizando localmente.');
     }
 
-    setPedidosAsignados(pedidosAsignados.map(p => p.id === pedidoACerrar.id ? {
+    // Actualización inmediata en las listas locales
+    const actualizarLista = (lista) => lista.map(p => p.id === pedidoACerrar.id ? {
       ...p,
       estado_entrega: estadoEntrega,
-      monto_efectivo: montoEfectivo || 0,
-      monto_transferencia: montoTransferencia || 0,
-      monto_cheque: montoCheque || 0,
-      monto_total_cobrado: (parseFloat(montoEfectivo) || 0) + (parseFloat(montoTransferencia) || 0) + (parseFloat(montoCheque) || 0),
+      monto_efectivo: ef,
+      monto_transferencia: tr,
+      monto_cheque: ch,
+      monto_total_cobrado: totalCobrado,
       km_recorridos_pedido: kmPedido,
       gasto_total: totalGastosPedido
-    } : p));
+    } : p);
+
+    setPedidosAsignados(actualizarLista(pedidosAsignados.length > 0 ? pedidosAsignados : pedidosEjemplo));
+    setPedidosBD(actualizarLista(pedidosBD.length > 0 ? pedidosBD : pedidosEjemplo));
 
     setModalCierreAbierto(false);
     setPedidoACerrar(null);
@@ -223,21 +240,24 @@ export default function Panel({ email }) {
     setMontoCheque('');
     setKmEntregaInterurbana('');
     setGastos({ desayuno: '', almuerzo: '', merienda: '', cena: '', hotel: '', otros: '' });
+    
+    // Refrescar BD
+    cargarPedidos();
   };
 
-  // Confirmar el cierre total del viaje (para entregas en Salta Capital)
   const confirmarCierreFinalViaje = () => {
     if (!kmFinalViajeSalta) {
       alert('Ingresa el kilometraje final del vehículo al momento del regreso.');
       return;
     }
-    alert(`¡Viaje finalizado con éxito!\nKilometraje final del vehículo registrado: ${kmFinalViajeSalta} km.\nEl vehículo queda marcado como Disponible.`);
+    alert(`¡Viaje finalizado con éxito!\nKilometraje final del vehículo registrado: ${kmFinalViajeSalta} km.`);
     setModalCierreFinalViaje(false);
     setKmFinalViajeSalta('');
   };
 
   const exportarReporteExcel = () => {
-    const datosExportar = (pedidosAsignados.length > 0 ? pedidosAsignados : pedidosBD).map(p => ({
+    const listaReporte = pedidosBD.length > 0 ? pedidosBD : (pedidosAsignados.length > 0 ? pedidosAsignados : pedidosEjemplo);
+    const datosExportar = listaReporte.map(p => ({
       'N° Pedido': p.id,
       'Cliente': p.cliente || p.Cliente,
       'Provincia': p.provincia || 'Salta',
@@ -260,6 +280,8 @@ export default function Panel({ email }) {
   };
 
   const vehiculoActualObj = flotaVehiculos.find(v => v.dominio === vehiculoSeleccionado);
+  const listaMostrada = pedidosAsignados.length > 0 ? pedidosAsignados : (pedidosBD.length > 0 ? pedidosBD : pedidosEjemplo);
+  const listaReportes = pedidosBD.length > 0 ? pedidosBD : listaMostrada;
 
   return (
     <div style={{ backgroundColor: '#f1f5f9', minHeight: '100vh', fontFamily: 'sans-serif' }}>
@@ -276,7 +298,6 @@ export default function Panel({ email }) {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {/* BADGE DE PATENTE MERCCOSUR / ARGENTINA */}
           <div style={{
             backgroundColor: '#ffffff',
             border: '2px solid #0f172a',
@@ -311,10 +332,10 @@ export default function Panel({ email }) {
         </div>
       </div>
 
-      {/* CONTENIDO PRINCIPAL DEL PANEL */}
+      {/* CONTENIDO PRINCIPAL */}
       <div style={{ padding: '24px', maxWidth: '1100px', margin: '0 auto' }}>
         
-        {/* TÍTULO Y PESTAÑAS */}
+        {/* TÍTULO Y BOTONES DE LOGÍSTICA */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
           <div>
             <h1 style={{ fontSize: '24px', fontWeight: 'bold', margin: 0, color: '#0f172a' }}>
@@ -330,13 +351,13 @@ export default function Panel({ email }) {
           {!esChofer && (
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
               <button 
-                onClick={() => setPestanaActiva('gestion')}
+                onClick={() => { setPestanaActiva('gestion'); cargarPedidos(); }}
                 style={{ backgroundColor: pestanaActiva === 'gestion' ? '#1e293b' : '#64748b', color: 'white', border: 'none', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}
               >
                 🗺️ Rutas y Asignación
               </button>
               <button 
-                onClick={() => setPestanaActiva('reportes')}
+                onClick={() => { setPestanaActiva('reportes'); cargarPedidos(); }}
                 style={{ backgroundColor: pestanaActiva === 'reportes' ? '#1e293b' : '#64748b', color: 'white', border: 'none', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}
               >
                 📊 Reportes y Exportación
@@ -352,7 +373,7 @@ export default function Panel({ email }) {
           )}
         </div>
 
-        {/* CHECKLIST OBLIGATORIO DEL VEHÍCULO */}
+        {/* VISTA CHOFER: CHECKLIST */}
         {esChofer && !checklistEnviado ? (
           <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
             <form onSubmit={enviarChecklistVehiculo}>
@@ -404,7 +425,7 @@ export default function Panel({ email }) {
                   rows="3" 
                   value={observacionesChecklist} 
                   onChange={(e) => setObservacionesChecklist(e.target.value)} 
-                  placeholder="Observaciones de la unidad antes de partir..."
+                  placeholder="Observaciones..."
                   style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px' }}
                 />
               </div>
@@ -465,7 +486,6 @@ export default function Panel({ email }) {
                 </div>
               )}
 
-              {/* DETALLE DEL TRANSPORTE ASIGNADO AL CHOFER */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <span style={{ 
@@ -516,7 +536,7 @@ export default function Panel({ email }) {
                   )}
                 </div>
 
-                {(pedidosAsignados.length > 0 ? pedidosAsignados : pedidosEjemplo).map((p, idx) => {
+                {listaMostrada.map((p, idx) => {
                   const esOtraProvincia = (p.provincia || 'Salta').toLowerCase() !== 'salta';
                   return (
                     <div key={idx} style={{ marginBottom: '12px', padding: '12px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
@@ -527,7 +547,11 @@ export default function Panel({ email }) {
                         <span style={{ fontSize: '12px', color: '#475569' }}>
                           Tipo de Recorrido: <strong>{esOtraProvincia ? 'Interurbano / Otra Provincia (Pide KM por parada)' : 'Local Salta Capital'}</strong>
                         </span>
-                        <br/>Estado: <strong style={{ color: p.estado_entrega === 'Entregado' ? '#166534' : '#854d0e' }}>{p.estado_entrega || 'Pendiente'}</strong>
+                        <br/>Estado: <strong style={{ 
+                          color: p.estado_entrega === 'Entregado' ? '#166534' : p.estado_entrega === 'Pendiente' ? '#854d0e' : '#991b1b',
+                          backgroundColor: p.estado_entrega === 'Entregado' ? '#dcfce7' : p.estado_entrega === 'Pendiente' ? '#fef9c3' : '#fee2e2',
+                          padding: '2px 6px', borderRadius: '4px', fontSize: '12px'
+                        }}>{p.estado_entrega || 'Pendiente'}</strong>
                       </div>
                       
                       {esChofer && (
@@ -549,7 +573,7 @@ export default function Panel({ email }) {
                       onChange={(e) => setPedidoSeleccionado(e.target.value)}
                       style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: '8px', padding: '10px', fontSize: '14px', backgroundColor: '#fff' }}
                     >
-                      <option value="">Seleccionar pedido de prueba o importado...</option>
+                      <option value="">Seleccionar pedido para agregar a la ruta...</option>
                       {pedidosBD.map((p) => (
                         <option key={p.id} value={p.id}>
                           #{p.id} - {p.cliente} ({p.provincia || 'Salta'}) | {p.direccion}
@@ -577,7 +601,7 @@ export default function Panel({ email }) {
           )
         )}
 
-        {/* REPORTES Y EXPORTACIÓN */}
+        {/* VISTA 2: REPORTES Y EXPORTACIÓN A EXCEL (SINCRONIZADO EN TIEMPO REAL) */}
         {pestanaActiva === 'reportes' && !esChofer && (
           <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
@@ -606,7 +630,7 @@ export default function Panel({ email }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {(pedidosAsignados.length > 0 ? pedidosAsignados : pedidosBD).map((p, idx) => (
+                  {listaReportes.map((p, idx) => (
                     <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
                       <td style={{ padding: '10px', fontWeight: 'bold' }}>#{p.id}</td>
                       <td style={{ padding: '10px' }}>{p.cliente || p.Cliente}</td>
@@ -614,8 +638,8 @@ export default function Panel({ email }) {
                       <td style={{ padding: '10px' }}>
                         <span style={{ 
                           padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold',
-                          backgroundColor: p.estado_entrega === 'Entregado' ? '#dcfce7' : '#fef9c3',
-                          color: p.estado_entrega === 'Entregado' ? '#166534' : '#854d0e'
+                          backgroundColor: p.estado_entrega === 'Entregado' ? '#dcfce7' : p.estado_entrega === 'Pendiente' ? '#fef9c3' : '#fee2e2',
+                          color: p.estado_entrega === 'Entregado' ? '#166534' : p.estado_entrega === 'Pendiente' ? '#854d0e' : '#991b1b'
                         }}>
                           {p.estado_entrega || 'Pendiente'}
                         </span>
@@ -653,11 +677,10 @@ export default function Panel({ email }) {
               <option value="No entregado">No entregado</option>
             </select>
 
-            {/* SI ES OTRA PROVINCIA, SOLICITA EL KM DE LA PARADA */}
             {(pedidoACerrar?.provincia || 'Salta').toLowerCase() !== 'salta' && (
               <div style={{ backgroundColor: '#eff6ff', padding: '12px', borderRadius: '8px', border: '1px solid #bfdbfe', marginBottom: '15px' }}>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#1e40af', marginBottom: '4px' }}>
-                  🛣️ KM Recorridos en esta Parada Interurbana / Provincia:
+                  KM Recorridos en esta Parada Interurbana / Provincia:
                 </label>
                 <input 
                   type="number" 
@@ -694,13 +717,13 @@ export default function Panel({ email }) {
         </div>
       )}
 
-      {/* MODAL DE CIERRE FINAL DEL VIAJE (PARA ENTREGAS EN SALTA CAPITAL) */}
+      {/* MODAL DE CIERRE FINAL DEL VIAJE */}
       {modalCierreFinalViaje && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '12px', maxWidth: '450px', width: '90%' }}>
-            <h3 style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: 'bold' }}>🏁 Cierre Final del Viaje (Salta Capital)</h3>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: 'bold' }}>🏁 Cierre Final del Viaje</h3>
             <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '15px' }}>
-              Ingresa el kilometraje final marcado por el odómetro del vehículo al regresar al Centro de Distribución.
+              Ingresa el kilometraje final marcado por el vehículo al regresar al Centro de Distribución.
             </p>
 
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px', color: '#1e293b' }}>
@@ -722,7 +745,7 @@ export default function Panel({ email }) {
         </div>
       )}
 
-      {/* MODAL DE IMPORTACIÓN DE EXCEL */}
+      {/* MODAL DE IMPORTACIÓN */}
       {modalAbierto && !esChofer && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '12px', maxWidth: '600px', width: '90%' }}>
