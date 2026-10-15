@@ -129,17 +129,17 @@ export default function Panel({ email }) {
     alert(`¡Vehículo patente ${nuevoVeh.dominio} añadido a la flota correctamente!`);
   };
 
-  // Cargar pedidos desde la BD
+  // Cargar pedidos desde la BD en tiempo real
   const cargarPedidos = async () => {
     try {
-      const res = await fetch('/api/pedidos');
+      const res = await fetch('/api/pedidos', { cache: 'no-store' });
       if (!res.ok) throw new Error('Error de conexión');
       const data = await res.json();
-      if (data.success && Array.isArray(data.pedidos) && data.pedidos.length > 0) {
+      if (data.success && Array.isArray(data.pedidos)) {
         setPedidosBD(data.pedidos);
       }
     } catch (err) {
-      console.warn('Utilizando datos locales.');
+      console.warn('Utilizando datos locales o cargados previamente.');
     }
   };
 
@@ -333,8 +333,8 @@ export default function Panel({ email }) {
   };
 
   const vehiculoActualObj = flotaVehiculos.find(v => v.dominio === vehiculoSeleccionado);
-  const listaMostrada = pedidosAsignados.length > 0 ? pedidosAsignados : (pedidosBD.length > 0 ? pedidosBD : pedidosEjemplo);
-  const listaReportes = pedidosBD.length > 0 ? pedidosBD : listaMostrada;
+  const listaMostrada = pedidosBD.length > 0 ? pedidosBD : (pedidosAsignados.length > 0 ? pedidosAsignados : pedidosEjemplo);
+  const listaReportes = pedidosBD.length > 0 ? pedidosBD : pedidosEjemplo;
 
   return (
     <div style={{ backgroundColor: '#f1f5f9', minHeight: '100vh', fontFamily: 'sans-serif' }}>
