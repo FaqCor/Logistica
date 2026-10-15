@@ -333,8 +333,10 @@ export default function Panel({ email }) {
   };
 
   const vehiculoActualObj = flotaVehiculos.find(v => v.dominio === vehiculoSeleccionado);
-  const listaMostrada = pedidosBD.length > 0 ? pedidosBD : (pedidosAsignados.length > 0 ? pedidosAsignados : pedidosEjemplo);
-  const listaReportes = pedidosBD.length > 0 ? pedidosBD : pedidosEjemplo;
+  // Forzar el uso exclusivo de los pedidos provenientes de Neon (pedidosBD)
+  // Si pedidosBD está vacío, muestra un aviso en lugar de inventar datos estáticos
+  const listaMostrada = pedidosBD.length > 0 ? pedidosBD : pedidosAsignados;
+  const listaReportes = pedidosBD.length > 0 ? pedidosBD : [];
 
   return (
     <div style={{ backgroundColor: '#f1f5f9', minHeight: '100vh', fontFamily: 'sans-serif' }}>
