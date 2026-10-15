@@ -1,63 +1,74 @@
 import { NextResponse } from 'next/server';
-import { Pool } from '@neondatabase/serverless';
-
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+import { neon } from '@neondatabase/serverless';
 
 export async function POST(request) {
   try {
-    const { 
-      pedidoId, 
-      estadoEntrega, 
-      efectivo, 
-      transferencia, 
-      cheque,
-      gastos: { desayuno, almuerzo, merienda, cena, hotel, otros },
-      kmRecorridos
-    } = await request.json();
-    
-    const ef = parseFloat(efectivo) || 0;
-    const tr = parseFloat(transferencia) || 0;
-    const ch = parseFloat(cheque) || 0;
-    const totalCobrado = ef + tr + ch;
+    const body = await request.json();
+    const { pedidoId, estadoEntrega, efectivo, transferencia, cheque, gastos, kmRecorridos } = body;
 
-    const gDesayuno = parseFloat(desayuno) || 0;
-    const gAlmuerzo = parseFloat(almuerzo) || 0;
-    const gMerienda = parseFloat(merienda) || 0;
-    const gCena = parseFloat(cena) || 0;
-    const gHotel = parseFloat(hotel) || 0;
-    const gOtros = parseFloat(otros) || 0;
-    const totalGastos = gDesayuno + gAlmuerzo + gMerienda + gCena + gHotel + gOtros;
+    const sql = neon(process.env.DATABASE_URL);
 
-    const client = await pool.connect();
-    await client.query(
-      `UPDATE pedidos 
-       SET estado_entrega = $1, 
-           monto_efectivo = $2, 
-           monto_transferencia = $3, 
-           monto_cheque = $4, 
-           monto_total_cobrado = $5,
-           gasto_desayuno = $6,
-           gasto_almuerzo = $7,
-           gasto_merienda = $8,
-           gasto_cena = $9,
-           gasto_hotel = $10,
-           gasto_otros = $11,
-           gasto_total = $12,
-           km_recorridos_pedido = $13,
-           fecha_cierre = NOW() 
-       WHERE id = $14`,
-      [
-        estadoEntrega, ef, tr, ch, totalCobrado,
-        gDesayuno, gAlmuerzo, gMerienda, gCena, gHotel, gOtros, totalGastos,
-        parseFloat(kmRecorridos) || 0,
-        pedidoId
-      ]
-    );
-    client.release();
+    // 1. Actualizar el estado del pedido principal
+    await sql`
+      UPDATE pedidos 
+      SET 
+        estado_entrega = ${estadoEntrega},
+        monto_total_cobrado = ${parseFloat(efectivo || 0) + parseFloat(transferencia || 0) + parseFloat(cheque || 0)},
+        gasto_total = ${
+          (parseFloat(gastos?.desayuno) || 0) + 
+          (parseFloat(gastos?.almuerzo) || 0) + 
+          (parseFloat(gastos?.merienda) || 0) + 
+          (parseFloat(gastos?.cena) || 0) + 
+          (parseFloat(gastos?.hotel) || 0) + 
+          (parseFloat(gastos?.otros) || 0)
+        },
+        km_recorridos_pedido = ${parseFloat(kmRecorridos || 0)},
+        fecha_cierre = CURRENT_TIMESTAMP
+      WHERE id = ${pedidoId}
+    `;
 
-    return NextResponse.json({ success: true, message: 'Cierre registrado y viáticos guardados.' });
+    // 2. Registrar en la tabla normalizada 'registros_entrega'
+    await sql`
+      INSERT INTO registros_entrega (pedido_id, estado, km_recorrido, fecha_registro)
+      VALUES (${pedidoId}, ${estadoEntrega}, ${parseFloat(kmRecorridos || 0)}, CURRENT_TIMESTAMP)
+      ON CONFLICT DO NOTHING;
+    `;
+
+    // 3. Registrar desglose de cobranzas en 'cobros' (si hubo montos)
+    const totalEfectivo = parseFloat(efectivo) || 0;
+    const totalTransferencia = parseFloat(transferencia) || 0;
+    const totalCheque = parseFloat(cheque) || 0;
+
+    if (totalEfectivo > 0 || totalTransferencia > 0 || totalCheque > 0) {
+      await sql`
+        INSERT INTO cobros (pedido_id, monto_efectivo, monto_transferencia, monto_cheque, fecha_cobro)
+        VALUES (${pedidoId}, ${totalEfectivo}, ${totalTransferencia}, ${totalCheque}, CURRENT_TIMESTAMP)
+      `;
+    }
+
+    // 4. Registrar viáticos detallados en la tabla 'viaticos'
+    const desayuno = parseFloat(gastos?.desayuno) || 0;
+    const almuerzo = parseFloat(gastos?.almuerzo) || 0;
+    const merienda = parseFloat(gastos?.merienda) || 0;
+    const cena = parseFloat(gastos?.cena) || 0;
+    const hotel = parseFloat(gastos?.hotel) || 0;
+    const otros = parseFloat(gastos?.otros) || 0;
+    const sumaViaticos = desayuno + almuerzo + merienda + cena + hotel + otros;
+
+    if (sumaViaticos > 0) {
+      await sql`
+        INSERT INTO viaticos (pedido_id, desayuno, almuerzo, merienda, cena, hotel, otros, total_viaticos, fecha)
+        VALUES (${pedidoId}, ${desayuno}, ${almuerzo}, ${merienda}, ${cena}, ${hotel}, ${otros}, ${sumaViaticos}, CURRENT_TIMESTAMP)
+      `;
+    }
+
+    return NextResponse.json({ 
+      success: true, 
+      message: `Cierre del pedido #${pedidoId} registrado con éxito en las tablas correspondientes.` 
+    });
+
   } catch (error) {
-    console.error('Error al cerrar pedido:', error);
-    return NextResponse.json({ error: 'Error al registrar el cierre del pedido' }, { status: 500 });
+    console.error('Error al registrar cierre en Neon:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
