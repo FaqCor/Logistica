@@ -8,6 +8,10 @@ export default function Panel({ email }) {
   const [datosExcel, setDatosExcel] = useState([]);
   const [importando, setImportando] = useState(false);
 
+  // --- ESTADOS PARA LA GESTIÓN DE RUTA Y PEDIDOS ---
+  const [pedidoSeleccionado, setPedidoSeleccionado] = useState('');
+  const [pedidosAsignados, setPedidosAsignados] = useState([]);
+
   // Cargar el archivo Excel
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
@@ -51,11 +55,19 @@ export default function Panel({ email }) {
     }
   };
 
+  // Agregar pedido seleccionado a la lista asignada
+  const handleAgregarPedido = () => {
+    if (!pedidoSeleccionado) return;
+    setPedidosAsignados([...pedidosAsignados, pedidoSeleccionado]);
+    setPedidoSeleccionado('');
+  };
+
   return (
-    <div style={{ padding: '20px', maxWidth: '1000px', margin: '0 auto' }}>
-      {/* Cabecera con título y botón de importación */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: 'bold' }}>Nueva ruta</h1>
+    <div style={{ padding: '24px', maxWidth: '1000px', margin: '0 auto', fontFamily: 'sans-serif' }}>
+      
+      {/* CABECERA: TÍTULO Y BOTÓN IMPORTAR */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <h1 style={{ fontSize: '24px', fontWeight: 'bold', margin: 0, color: '#0f172a' }}>Nueva ruta</h1>
         
         <div>
           <button 
@@ -64,10 +76,14 @@ export default function Panel({ email }) {
               backgroundColor: '#047857',
               color: 'white',
               border: 'none',
-              padding: '10px 16px',
+              padding: '10px 18px',
               borderRadius: '8px',
               cursor: 'pointer',
-              fontWeight: '500'
+              fontWeight: '600',
+              fontSize: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
             }}
           >
             📊 Importar Excel de Ventas
@@ -82,83 +98,108 @@ export default function Panel({ email }) {
         </div>
       </div>
 
-      {/* --- TARJETA DEL CHOFER ORIGINAL (RESTAURADA) --- */}
-      <div style={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px', marginBottom: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+      {/* TARJETA DEL CHOFER (CON TODOS LOS BOTONES Y DESPLEGABLES) */}
+      <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '24px' }}>
+        
+        {/* FILA SUPERIOR: DOMINIO, CHOFER Y INSIGNIAS DE ESTADO */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ backgroundColor: '#0f172a', color: '#fff', fontFamily: 'monospace', fontSize: '12px', padding: '4px 8px', borderRadius: '4px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ backgroundColor: '#0f172a', color: '#fff', fontFamily: 'monospace', fontSize: '13px', fontWeight: 'bold', padding: '4px 8px', borderRadius: '4px' }}>
               NEB732
             </span>
-            <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, color: '#1f2937' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, color: '#1e293b' }}>
               Juan Pérez
             </h2>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
-            <span style={{ backgroundColor: '#fef3c7', color: '#92400e', fontSize: '12px', padding: '4px 10px', borderRadius: '12px', fontWeight: '500' }}>
+            <span style={{ backgroundColor: '#fef3c7', color: '#92400e', fontSize: '12px', padding: '4px 12px', borderRadius: '16px', fontWeight: '500' }}>
               Sin checklist
             </span>
-            <span style={{ backgroundColor: '#f1f5f9', color: '#334155', fontSize: '12px', padding: '4px 10px', borderRadius: '12px', fontWeight: '500' }}>
+            <span style={{ backgroundColor: '#e2e8f0', color: '#334155', fontSize: '12px', padding: '4px 12px', borderRadius: '16px', fontWeight: '500' }}>
               Planificada
             </span>
           </div>
         </div>
 
-        <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
-          0/0 entregados | Cobrado $0
+        {/* METRICAS DE ENTREGAS Y COBRO */}
+        <p style={{ fontSize: '14px', color: '#64748b', margin: '0 0 16px 0' }}>
+          {pedidosAsignados.length}/0 entregados | Cobrado $0
         </p>
 
-        <div style={{ borderTop: '1px dashed #e5e7eb', paddingTop: '16px' }}>
-          <p style={{ fontSize: '14px', color: '#9ca3af', fontStyle: 'italic', marginBottom: '12px' }}>
-            Sin pedidos asignados.
-          </p>
-          
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <select style={{ flex: 1, border: '1px solid #d1d5db', borderRadius: '8px', padding: '8px 12px', fontSize: '14px', backgroundColor: '#fff' }}>
+        {/* SECCIÓN DE ASIGNACIÓN DE PEDIDOS */}
+        <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '16px' }}>
+          {pedidosAsignados.length === 0 ? (
+            <p style={{ fontSize: '14px', color: '#94a3b8', fontStyle: 'italic', marginBottom: '12px' }}>
+              Sin pedidos asignados.
+            </p>
+          ) : (
+            <ul style={{ paddingLeft: '20px', marginBottom: '12px', fontSize: '14px', color: '#334155' }}>
+              {pedidosAsignados.map((item, index) => (
+                <li key={index}>{item}</li>
+              ))}
+            </ul>
+          )}
+
+          {/* SELECTOR Y BOTÓN AGREGAR */}
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <select 
+              value={pedidoSeleccionado}
+              onChange={(e) => setPedidoSeleccionado(e.target.value)}
+              style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: '8px', padding: '10px 14px', fontSize: '14px', backgroundColor: '#fff', color: '#334155', outline: 'none' }}
+            >
               <option value="">Agregar pedido sin asignar...</option>
+              <option value="Pedido #001 - Cliente Ejemplo SRL">Pedido #001 - Cliente Ejemplo SRL</option>
+              <option value="Pedido #002 - Distribuidora Norte">Pedido #002 - Distribuidora Norte</option>
             </select>
-            <button style={{ padding: '8px 16px', backgroundColor: '#f3f4f6', color: '#374151', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: '500', cursor: 'pointer' }}>
+            
+            <button 
+              onClick={handleAgregarPedido}
+              style={{ padding: '10px 20px', backgroundColor: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '14px', fontWeight: '500', cursor: 'pointer' }}
+            >
               Agregar
             </button>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-          <button style={{ padding: '10px 18px', backgroundColor: '#fde047', color: '#713f12', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
+        {/* BOTONES ACCIONADORES: OPTIMIZAR RUTA Y ENVIAR POR WHATSAPP */}
+        <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+          <button style={{ padding: '12px 24px', backgroundColor: '#facc15', color: '#713f12', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
             Optimizar ruta
           </button>
-          <button style={{ padding: '10px 18px', backgroundColor: '#064e3b', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
+          <button style={{ padding: '12px 24px', backgroundColor: '#064e3b', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
             Enviar por WhatsApp
           </button>
         </div>
+
       </div>
 
-      {/* --- MODAL DE PREVISUALIZACIÓN DE EXCEL --- */}
+      {/* MODAL DE PREVISUALIZACIÓN DE EXCEL */}
       {modalAbierto && (
         <div style={{
           position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
         }}>
           <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '12px', maxWidth: '700px', width: '90%' }}>
-            <h3 style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: 'bold' }}>Vista Previa de Pedidos</h3>
-            <p style={{ color: '#666', fontSize: '14px', marginBottom: '15px' }}>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 'bold' }}>Vista Previa de Pedidos</h3>
+            <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '16px' }}>
               Se encontraron {datosExcel.length} pedidos en el archivo.
             </p>
             
-            <div style={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid #ddd', borderRadius: '8px', marginBottom: '15px' }}>
+            <div style={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', marginBottom: '16px' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', textAlign: 'left' }}>
                 <thead>
-                  <tr style={{ backgroundColor: '#f5f5f5', borderBottom: '1px solid #ddd' }}>
-                    <th style={{ padding: '8px' }}>Cliente</th>
-                    <th style={{ padding: '8px' }}>Dirección</th>
-                    <th style={{ padding: '8px' }}>Monto</th>
+                  <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                    <th style={{ padding: '10px' }}>Cliente</th>
+                    <th style={{ padding: '10px' }}>Dirección</th>
+                    <th style={{ padding: '10px' }}>Monto</th>
                   </tr>
                 </thead>
                 <tbody>
                   {datosExcel.map((row, idx) => (
-                    <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
-                      <td style={{ padding: '8px' }}>{row.Cliente || row.cliente || '-'}</td>
-                      <td style={{ padding: '8px' }}>{row.Direccion || row.dirección || '-'}</td>
-                      <td style={{ padding: '8px' }}>${row.Monto || row.monto || 0}</td>
+                    <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '10px' }}>{row.Cliente || row.cliente || '-'}</td>
+                      <td style={{ padding: '10px' }}>{row.Direccion || row.dirección || '-'}</td>
+                      <td style={{ padding: '10px' }}>${row.Monto || row.monto || 0}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -168,14 +209,14 @@ export default function Panel({ email }) {
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button 
                 onClick={() => setModalAbierto(false)}
-                style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #ccc', backgroundColor: '#fff', cursor: 'pointer' }}
+                style={{ padding: '10px 18px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#fff', cursor: 'pointer', fontSize: '14px' }}
               >
                 Cancelar
               </button>
               <button 
                 onClick={confirmarImportacion}
                 disabled={importando}
-                style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: '#047857', color: 'white', cursor: 'pointer' }}
+                style={{ padding: '10px 18px', borderRadius: '8px', border: 'none', backgroundColor: '#047857', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: '500' }}
               >
                 {importando ? 'Guardando...' : 'Confirmar e Importar'}
               </button>
@@ -183,6 +224,7 @@ export default function Panel({ email }) {
           </div>
         </div>
       )}
+
     </div>
   );
 }
