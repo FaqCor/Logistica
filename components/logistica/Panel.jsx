@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import * as XLSX from 'xlsx';
 
 export default function Panel({ email }) {
+  // --- ESTADOS PARA LA IMPORTACIÓN DE EXCEL ---
   const [modalAbierto, setModalAbierto] = useState(false);
   const [datosExcel, setDatosExcel] = useState([]);
   const [importando, setImportando] = useState(false);
@@ -81,14 +82,61 @@ export default function Panel({ email }) {
         </div>
       </div>
 
-      {/* AQUÍ VA TU TARJETA DE CHOFER ORIGINAL */}
-      {/* (Mantén la estructura y clases de CSS originales que tenías para Juan Pérez) */}
+      {/* --- TARJETA DEL CHOFER ORIGINAL (RESTAURADA) --- */}
+      <div style={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px', marginBottom: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ backgroundColor: '#0f172a', color: '#fff', fontFamily: 'monospace', fontSize: '12px', padding: '4px 8px', borderRadius: '4px' }}>
+              NEB732
+            </span>
+            <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, color: '#1f2937' }}>
+              Juan Pérez
+            </h2>
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <span style={{ backgroundColor: '#fef3c7', color: '#92400e', fontSize: '12px', padding: '4px 10px', borderRadius: '12px', fontWeight: '500' }}>
+              Sin checklist
+            </span>
+            <span style={{ backgroundColor: '#f1f5f9', color: '#334155', fontSize: '12px', padding: '4px 10px', borderRadius: '12px', fontWeight: '500' }}>
+              Planificada
+            </span>
+          </div>
+        </div>
 
-      {/* Modal de Previsualización */}
+        <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
+          0/0 entregados | Cobrado $0
+        </p>
+
+        <div style={{ borderTop: '1px dashed #e5e7eb', paddingTop: '16px' }}>
+          <p style={{ fontSize: '14px', color: '#9ca3af', fontStyle: 'italic', marginBottom: '12px' }}>
+            Sin pedidos asignados.
+          </p>
+          
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <select style={{ flex: 1, border: '1px solid #d1d5db', borderRadius: '8px', padding: '8px 12px', fontSize: '14px', backgroundColor: '#fff' }}>
+              <option value="">Agregar pedido sin asignar...</option>
+            </select>
+            <button style={{ padding: '8px 16px', backgroundColor: '#f3f4f6', color: '#374151', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: '500', cursor: 'pointer' }}>
+              Agregar
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+          <button style={{ padding: '10px 18px', backgroundColor: '#fde047', color: '#713f12', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
+            Optimizar ruta
+          </button>
+          <button style={{ padding: '10px 18px', backgroundColor: '#064e3b', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
+            Enviar por WhatsApp
+          </button>
+        </div>
+      </div>
+
+      {/* --- MODAL DE PREVISUALIZACIÓN DE EXCEL --- */}
       {modalAbierto && (
         <div style={{
           position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)',
-          display: 'flex', alignItems: 'center', justifyCenter: 'center', zIndex: 1000
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
         }}>
           <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '12px', maxWidth: '700px', width: '90%' }}>
             <h3 style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: 'bold' }}>Vista Previa de Pedidos</h3>
