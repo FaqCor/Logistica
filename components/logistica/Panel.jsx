@@ -5,7 +5,6 @@ import * as XLSX from 'xlsx';
 export default function Panel({ email }) {
   const esChofer = email && email.toLowerCase().includes('chofer'); 
 
-  // Pestaña activa ('gestion' o 'reportes')
   const [pestanaActiva, setPestanaActiva] = useState('gestion');
 
   // Estados de importación y datos
@@ -16,7 +15,22 @@ export default function Panel({ email }) {
   const [pedidosBD, setPedidosBD] = useState([]);
   const [pedidosAsignados, setPedidosAsignados] = useState([]);
   const [pedidoSeleccionado, setPedidoSeleccionado] = useState('');
-  const kmVehiculoFijo = 124500; 
+
+  // Catálogo de choferes y vehículos disponibles
+  const listaChoferes = [
+    { id: 1, nombre: 'Juan Pérez' },
+    { id: 2, nombre: 'Carlos Gómez' },
+    { id: 3, nombre: 'Marcos Ruiz' }
+  ];
+
+  const [flotaVehiculos, setFlotaVehiculos] = useState([
+    { dominio: 'NEB732', modelo: 'IVECO Daily', km: 124500, estado: 'Disponible', enMantenimiento: false },
+    { dominio: 'AF997GV', modelo: 'Mercedes Benz Sprinter', km: 98200, estado: 'Disponible', enMantenimiento: false },
+    { dominio: 'AD172YF', modelo: 'Mercedes Benz Atego', km: 210400, estado: 'Disponible', enMantenimiento: false }
+  ]);
+
+  const [choferSeleccionado, setChoferSeleccionado] = useState(listaChoferes[0].nombre);
+  const [vehiculoSeleccionado, setVehiculoSeleccionado] = useState(flotaVehiculos[0].dominio);
 
   // Estados para el cierre del chofer por parada
   const [modalCierreAbierto, setModalCierreAbierto] = useState(false);
@@ -25,8 +39,8 @@ export default function Panel({ email }) {
   const [montoEfectivo, setMontoEfectivo] = useState('');
   const [montoTransferencia, setMontoTransferencia] = useState('');
   const [montoCheque, setMontoCheque] = useState('');
+  const [requiereTaller, setRequiereTaller] = useState(false);
 
-  // Cargar pedidos desde la BD al iniciar
   const cargarPedidos = () => {
     fetch('/api/pedidos')
       .then(res => res.json())
@@ -80,6 +94,8 @@ export default function Panel({ email }) {
     if (!pedidoSeleccionado) return;
     const pedidoObj = pedidosBD.find(p => p.id.toString() === pedidoSeleccionado);
     if (pedidoObj && !pedidosAsignados.some(p => p.id === pedidoObj.id)) {
+      // Marcamos el vehículo seleccionado como 'Ocupado / En Viaje'
+      setFlotaVehiculos(flotaVehiculos.map(v => v.dominio === vehiculoSeleccionado ? { ...v, estado: 'En Viaje' } : v));
       setPedidosAsignados([...pedidosAsignados, pedidoObj]);
     }
     setPedidoSeleccionado('');
@@ -95,7 +111,7 @@ export default function Panel({ email }) {
     alert('¡Ruta optimizada y ordenada por secuencia de entrega eficiente!');
   };
 
-  // Registrar el cierre del pedido por el chofer
+  // Registrar el cierre del pedido por el chofer y liberar vehículo si corresponde
   const guardarCierreChofer = async () => {
     if (!pedidoACerrar) return;
     try {
@@ -113,11 +129,20 @@ export default function Panel({ email }) {
       const result = await res.json();
       if (res.ok) {
         alert('¡Viaje cerrado y reportado con éxito!');
+        
+        // Si se cierran todos los pedidos o se marca el fin de ruta, liberamos el vehículo (o lo ponemos en taller si aplica)
+        setFlotaVehiculos(flotaVehiculos.map(v => v.dominio === vehiculoSeleccionado ? { 
+          ...v, 
+          estado: 'Disponible', 
+          enMantenimiento: requiereTaller 
+        } : v));
+
         setModalCierreAbierto(false);
         setPedidoACerrar(null);
         setMontoEfectivo('');
         setMontoTransferencia('');
         setMontoCheque('');
+        setRequiereTaller(false);
         cargarPedidos();
       } else {
         alert('Error: ' + result.error);
@@ -130,6 +155,8 @@ export default function Panel({ email }) {
   const cerrarSesion = () => {
     window.location.href = '/login';
   };
+
+  const vehiculoActualObj = flotaVehiculos.find(v => v.dominio === vehiculoSeleccionado);
 
   return (
     <div style={{ padding: '24px', maxWidth: '1100px', margin: '0 auto', fontFamily: 'sans-serif' }}>
@@ -160,7 +187,7 @@ export default function Panel({ email }) {
                 onClick={() => setPestanaActiva('reportes')}
                 style={{ backgroundColor: pestanaActiva === 'reportes' ? '#1e293b' : '#64748b', color: 'white', border: 'none', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}
               >
-                📊 Reportes de Cierre en Tiempo Real
+                📊 Reportes en Tiempo Real
               </button>
               <button 
                 onClick={() => document.getElementById('inputExcelVentas').click()}
@@ -181,21 +208,55 @@ export default function Panel({ email }) {
         </div>
       </div>
 
-      {/* VISTA 1: GESTIÓN DE RUTAS Y CHOFERES */}
+      {/* VISTA 1: GESTIÓN DE RUTAS, SELECCIÓN DE CHOFER Y VEHÍCULOS DISPONIBLES */}
       {pestanaActiva === 'gestion' && (
         <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '24px' }}>
+          
+          {/* ASIGNACIÓN DE CHOFER Y VEHÍCULO (DESPLEGABLES) */}
+          {!esChofer && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '15px', marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid #e2e8f0' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px', color: '#334155' }}>Seleccionar Chofer:</label>
+                <select 
+                  value={choferSeleccionado} 
+                  onChange={(e) => setChoferSeleccionado(e.target.value)}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', backgroundColor: '#fff' }}
+                >
+                  {listaChoferes.map((ch, idx) => (
+                    <option key={idx} value={ch.nombre}>{ch.nombre}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px', color: '#334155' }}>Seleccionar Vehículo Disponible:</label>
+                <select 
+                  value={vehiculoSeleccionado} 
+                  onChange={(e) => setVehiculoSeleccionado(e.target.value)}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', backgroundColor: '#fff' }}
+                >
+                  {flotaVehiculos.map((v, idx) => (
+                    <option key={idx} value={v.dominio} disabled={v.enMantenimiento}>
+                      {v.dominio} - {v.modelo} ({v.estado} {v.enMantenimiento ? ' [En Taller]' : ''})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <span style={{ backgroundColor: '#0f172a', color: '#fff', fontFamily: 'monospace', fontSize: '13px', fontWeight: 'bold', padding: '4px 8px', borderRadius: '4px' }}>
-                NEB732
+                {vehiculoSeleccionado}
               </span>
               <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, color: '#1e293b' }}>
-                {esChofer ? 'Mi Unidad Asignada' : 'Juan Pérez'}
+                {esChofer ? 'Mi Unidad Asignada' : choferSeleccionado}
               </h2>
             </div>
             
             <div style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', color: '#334155', fontWeight: 'bold' }}>
-              Km del Vehículo: {kmVehiculoFijo} km {esChofer ? '(Fijo)' : '(Bloqueado)'}
+              Km del Vehículo: {vehiculoActualObj?.km || 124500} km {esChofer ? '(Fijo)' : '(Bloqueado)'} | Estado: <span style={{ color: vehiculoActualObj?.estado === 'En Viaje' ? '#d97706' : '#16a34a' }}>{vehiculoActualObj?.estado}</span>
             </div>
           </div>
 
@@ -204,23 +265,23 @@ export default function Panel({ email }) {
           </p>
 
           <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '16px', marginBottom: '16px' }}>
-            <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: '#334155' }}>Listado de Paradas:</h4>
+            <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: '#334155' }}>Listado de Paradas (Pedido N°, Dirección y Bultos):</h4>
             {pedidosAsignados.length === 0 ? (
               <p style={{ fontSize: '14px', color: '#94a3b8', fontStyle: 'italic' }}>No hay paradas asignadas actualmente.</p>
             ) : (
               <ul style={{ paddingLeft: '20px', fontSize: '14px', color: '#1e293b' }}>
                 {pedidosAsignados.map((p, idx) => (
-                  <li key={idx} style={{ marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
+                  <li key={idx} style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>
                     <div>
-                      <strong>{idx + 1}. {p.cliente || p.Cliente}</strong> - {p.direccion || p.Direccion} ({p.localidad || p.Localidad || 'Salta'}) 
-                      <br/><span style={{ fontSize: '12px', color: '#64748b' }}>Estado actual: <strong>{p.estado_entrega || 'Pendiente'}</strong></span>
+                      <strong>#{p.id || p.N_Pedido || 'S/N'} - {p.cliente || p.Cliente}</strong> 
+                      <br/>📍 Dirección: <strong>{p.direccion || p.Direccion}</strong> | 📦 Bultos: <strong>{p.bultos || p.Bultos || 1}</strong>
+                      <br/><span style={{ fontSize: '12px', color: '#64748b' }}>Estado: <strong>{p.estado_entrega || 'Pendiente'}</strong></span>
                     </div>
                     
-                    {/* Botón para que el chofer cierre este pedido específico */}
                     {esChofer && (
                       <button 
                         onClick={() => { setPedidoACerrar(p); setModalCierreAbierto(true); }}
-                        style={{ padding: '6px 12px', backgroundColor: '#0284c7', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
+                        style={{ padding: '8px 14px', backgroundColor: '#0284c7', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
                       >
                         📝 Cerrar / Cobrar
                       </button>
@@ -237,10 +298,10 @@ export default function Panel({ email }) {
                   onChange={(e) => setPedidoSeleccionado(e.target.value)}
                   style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: '8px', padding: '10px', fontSize: '14px', backgroundColor: '#fff' }}
                 >
-                  <option value="">Seleccionar pedido importado de la base de datos...</option>
+                  <option value="">Seleccionar pedido importado (N°, Dirección, Bultos)...</option>
                   {pedidosBD.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.cliente} - {p.direccion} (${p.monto})
+                      #{p.id} - {p.cliente} | Dir: {p.direccion} | Bultos: {p.bultos || 1} (${p.monto})
                     </option>
                   ))}
                 </select>
@@ -264,20 +325,17 @@ export default function Panel({ email }) {
         </div>
       )}
 
-      {/* VISTA 2: MENÚ DE REPORTES DE CIERRE EN TIEMPO REAL (EXCLUSIVO LOGÍSTICA) */}
+      {/* VISTA 2: REPORTE EN TIEMPO REAL */}
       {pestanaActiva === 'reportes' && !esChofer && (
         <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
           <h3 style={{ margin: '0 0 15px 0', fontSize: '18px', fontWeight: 'bold', color: '#1e293b' }}>
             📊 Reporte de Viajes y Cobranzas Cerradas por Choferes
           </h3>
-          <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px' }}>
-            Listado actualizado en tiempo real con el desglose exacto de los pagos recibidos y estados de entrega.
-          </p>
-
           <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
               <thead>
                 <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#334155' }}>
+                  <th style={{ padding: '10px' }}>N° Pedido</th>
                   <th style={{ padding: '10px' }}>Cliente</th>
                   <th style={{ padding: '10px' }}>Dirección</th>
                   <th style={{ padding: '10px' }}>Estado</th>
@@ -290,6 +348,7 @@ export default function Panel({ email }) {
               <tbody>
                 {pedidosBD.map((p, idx) => (
                   <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '10px', fontWeight: 'bold' }}>#{p.id}</td>
                     <td style={{ padding: '10px', fontWeight: '500' }}>{p.cliente || p.Cliente}</td>
                     <td style={{ padding: '10px', color: '#64748b' }}>{p.direccion || p.Direccion}</td>
                     <td style={{ padding: '10px' }}>
@@ -315,13 +374,13 @@ export default function Panel({ email }) {
         </div>
       )}
 
-      {/* MODAL DE CIERRE DE PEDIDO PARA EL CHOFER */}
+      {/* MODAL DE CIERRE DE PEDIDO CON OPCIÓN DE TALLER */}
       {modalCierreAbierto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '12px', maxWidth: '500px', width: '90%' }}>
             <h3 style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: 'bold' }}>Cierre de Parada / Cobranza</h3>
             <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '15px' }}>
-              Cliente: <strong>{pedidoACerrar?.cliente || pedidoACerrar?.Cliente}</strong>
+              Pedido #{pedidoACerrar?.id} - Cliente: <strong>{pedidoACerrar?.cliente || pedidoACerrar?.Cliente}</strong>
             </p>
 
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>Estado de Entrega:</label>
@@ -336,39 +395,25 @@ export default function Panel({ email }) {
             </select>
 
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>Monto en Efectivo ($):</label>
-            <input 
-              type="number" 
-              placeholder="0.00" 
-              value={montoEfectivo} 
-              onChange={(e) => setMontoEfectivo(e.target.value)}
-              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '12px', fontSize: '14px' }}
-            />
+            <input type="number" placeholder="0.00" value={montoEfectivo} onChange={(e) => setMontoEfectivo(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '12px', fontSize: '14px' }} />
 
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>Monto por Transferencia ($):</label>
-            <input 
-              type="number" 
-              placeholder="0.00" 
-              value={montoTransferencia} 
-              onChange={(e) => setMontoTransferencia(e.target.value)}
-              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '12px', fontSize: '14px' }}
-            />
+            <input type="number" placeholder="0.00" value={montoTransferencia} onChange={(e) => setMontoTransferencia(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '12px', fontSize: '14px' }} />
 
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>Monto en Cheques ($):</label>
-            <input 
-              type="number" 
-              placeholder="0.00" 
-              value={montoCheque} 
-              onChange={(e) => setMontoCheque(e.target.value)}
-              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '20px', fontSize: '14px' }}
-            />
+            <input type="number" placeholder="0.00" value={montoCheque} onChange={(e) => setMontoCheque(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '15px', fontSize: '14px' }} />
+
+            {/* Checkbox para enviar vehículo a taller si tuvo algún arreglo */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', backgroundColor: '#fef2f2', padding: '10px', borderRadius: '8px', border: '1px solid #fca5a5' }}>
+              <input type="checkbox" id="chkMantenimiento" checked={requiereTaller} onChange={(e) => setRequiereTaller(e.target.checked)} style={{ width: '16px', height: '16px' }} />
+              <label htmlFor="chkMantenimiento" style={{ fontSize: '13px', color: '#991b1b', fontWeight: 'bold', cursor: 'pointer' }}>
+                El vehículo requiere arreglo o revisión en taller (Bloquear disponibilidad)
+              </label>
+            </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button onClick={() => setModalCierreAbierto(false)} style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}>
-                Cancelar
-              </button>
-              <button onClick={guardarCierreChofer} style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', background: '#047857', color: '#fff', fontWeight: '600', cursor: 'pointer' }}>
-                Guardar Cierre
-              </button>
+              <button onClick={() => setModalCierreAbierto(false)} style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={guardarCierreChofer} style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', background: '#047857', color: '#fff', fontWeight: '600', cursor: 'pointer' }}>Guardar Cierre</button>
             </div>
           </div>
         </div>
