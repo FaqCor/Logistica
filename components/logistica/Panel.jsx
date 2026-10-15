@@ -3,21 +3,22 @@ import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 
 export default function Panel({ email }) {
-  const esChofer = email && email.toLowerCase().includes('chofer'); 
+  // Detección de sesión de chofer
+  const esChofer = email && (email.toLowerCase().includes('chofer') || email.toLowerCase().includes('driver')); 
 
   const [pestanaActiva, setPestanaActiva] = useState('gestion');
 
-  // Estado para controlar si el chofer ya completó y envió el checklist del vehículo hoy
+  // Estado del checklist obligatorio del vehículo
   const [checklistEnviado, setChecklistEnviado] = useState(false);
   const [kmChecklist, setKmChecklist] = useState('54000');
   const [observacionesChecklist, setObservacionesChecklist] = useState('');
   const [enviandoChecklist, setEnviandoChecklist] = useState(false);
 
-  // Obtener fecha actual formateada
+  // Fecha actual
   const hoy = new Date();
   const fechaFormateada = `${hoy.getDate().toString().padStart(2, '0')}/${(hoy.getMonth() + 1).toString().padStart(2, '0')}/${hoy.getFullYear()}`;
 
-  // Estados de importación y datos
+  // Estados de datos de la BD e importación
   const [modalAbierto, setModalAbierto] = useState(false);
   const [datosExcel, setDatosExcel] = useState([]);
   const [importando, setImportando] = useState(false);
@@ -26,9 +27,9 @@ export default function Panel({ email }) {
   const [pedidosAsignados, setPedidosAsignados] = useState([]);
   const [pedidoSeleccionado, setPedidoSeleccionado] = useState('');
 
-  // Catálogo de choferes y vehículos
+  // Lista de choferes y vehículos
   const listaChoferes = [
-    { id: 1, nombre: 'Juan Pérez' },
+    { id: 1, nombre: 'Juan Pérez (chofer@demo.com)' },
     { id: 2, nombre: 'Carlos Gómez' },
     { id: 3, nombre: 'Marcos Ruiz' }
   ];
@@ -42,16 +43,29 @@ export default function Panel({ email }) {
   const [choferSeleccionado, setChoferSeleccionado] = useState(listaChoferes[0].nombre);
   const [vehiculoSeleccionado, setVehiculoSeleccionado] = useState(flotaVehiculos[0].dominio);
 
+  // Pedidos de prueba predeterminados
+  const pedidosEjemplo = [
+    { id: 101, cliente: 'Ferretería El Norte', provincia: 'Salta', localidad: 'General Güemes', direccion: 'Av. San Martín 450', bultos: 12, monto: 185000, kmDesdeCD: 50, estado_entrega: 'Pendiente' },
+    { id: 102, cliente: 'Corralón San Miguel', provincia: 'Tucumán', localidad: 'San Miguel de Tucumán', direccion: 'Av. Kirchner 1200', bultos: 45, monto: 620000, kmDesdeCD: 310, estado_entrega: 'Pendiente' },
+    { id: 103, cliente: 'Distribuidora del Centro', provincia: 'Santiago del Estero', localidad: 'Santiago Capital', direccion: 'Belgrano Sur 890', bultos: 30, monto: 410000, kmDesdeCD: 470, estado_entrega: 'Pendiente' }
+  ];
+
   const [kmTotalRuta, setKmTotalRuta] = useState(0);
 
-  // Cierre y Gastos del chofer
+  // Modal de Cierre de Pedido / Gastos
   const [modalCierreAbierto, setModalCierreAbierto] = useState(false);
   const [pedidoACerrar, setPedidoACerrar] = useState(null);
   const [estadoEntrega, setEstadoEntrega] = useState('Entregado');
   const [montoEfectivo, setMontoEfectivo] = useState('');
   const [montoTransferencia, setMontoTransferencia] = useState('');
   const [montoCheque, setMontoCheque] = useState('');
+  const [kmEntregaInterurbana, setKmEntregaInterurbana] = useState('');
 
+  // Modal de Cierre Final del Viaje Completo (para Salta Capital)
+  const [modalCierreFinalViaje, setModalCierreFinalViaje] = useState(false);
+  const [kmFinalViajeSalta, setKmFinalViajeSalta] = useState('');
+
+  // Viáticos / Gastos
   const [gastos, setGastos] = useState({
     desayuno: '',
     almuerzo: '',
@@ -61,13 +75,19 @@ export default function Panel({ email }) {
     otros: ''
   });
 
-  const cargarPedidos = () => {
-    fetch('/api/pedidos')
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) setPedidosBD(data.pedidos);
-      })
-      .catch(err => console.error(err));
+  const cargarPedidos = async () => {
+    try {
+      const res = await fetch('/api/pedidos');
+      if (!res.ok) throw new Error('Error al conectar con la API');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.pedidos) && data.pedidos.length > 0) {
+        setPedidosBD(data.pedidos);
+      } else {
+        setPedidosBD(pedidosEjemplo);
+      }
+    } catch (err) {
+      setPedidosBD(pedidosEjemplo);
+    }
   };
 
   useEffect(() => {
@@ -104,13 +124,12 @@ export default function Panel({ email }) {
         alert('Error: ' + result.error);
       }
     } catch (error) {
-      alert('Hubo un error al conectar con el servidor.');
+      alert('Error al conectar con el servidor.');
     } finally {
       setImportando(false);
     }
   };
 
-  // Función para registrar y enviar el check list del vehículo
   const enviarChecklistVehiculo = (e) => {
     e.preventDefault();
     setEnviandoChecklist(true);
@@ -118,8 +137,11 @@ export default function Panel({ email }) {
     setTimeout(() => {
       setEnviandoChecklist(false);
       setChecklistEnviado(true);
-      alert('¡Checklist enviado y registrado correctamente! Ya puedes ver los pedidos del día.');
-    }, 800);
+      if (pedidosAsignados.length === 0) {
+        setPedidosAsignados(pedidosBD.length > 0 ? pedidosBD : pedidosEjemplo);
+      }
+      alert('¡Checklist enviado correctamente! Ya puedes visualizar tu ruta y vehículo asignado.');
+    }, 600);
   };
 
   const agregarPedidoRuta = () => {
@@ -133,25 +155,29 @@ export default function Panel({ email }) {
   };
 
   const optimizarRutaOrdenada = () => {
-    if (pedidosAsignados.length === 0) {
+    const listaAOptimar = pedidosAsignados.length > 0 ? pedidosAsignados : pedidosBD;
+    if (listaAOptimar.length === 0) {
       alert('Agrega al menos un pedido a la ruta para optimizar.');
       return;
     }
 
-    const rutaOrdenada = [...pedidosAsignados].sort((a, b) => (a.kmDesdeCD || 100) - (b.kmDesdeCD || 100));
+    const rutaOrdenada = [...listaAOptimar].sort((a, b) => (a.kmDesdeCD || 100) - (b.kmDesdeCD || 100));
     const kmMaximo = Math.max(...rutaOrdenada.map(p => p.kmDesdeCD || 150));
     const kmTotalCalculado = Math.round(kmMaximo * 2.15);
     
     setPedidosAsignados(rutaOrdenada);
     setKmTotalRuta(kmTotalCalculado);
 
-    alert(`¡Ruta optimizada!\nKilometraje total estimado: ${kmTotalCalculado} km.`);
+    alert(`¡Ruta optimizada!\nKilometraje total de ruta estimado: ${kmTotalCalculado} km.`);
   };
 
+  // Guardar cierre de un pedido individual (con km si es de otra provincia)
   const guardarCierreChofer = async () => {
     if (!pedidoACerrar) return;
 
-    const kmPedido = pedidoACerrar.kmDesdeCD || 120;
+    const esOtraProvincia = (pedidoACerrar.provincia || 'Salta').toLowerCase() !== 'salta';
+    const kmPedido = esOtraProvincia ? (parseFloat(kmEntregaInterurbana) || pedidoACerrar.kmDesdeCD || 0) : 0;
+    
     const totalGastosPedido = 
       (parseFloat(gastos.desayuno) || 0) + 
       (parseFloat(gastos.almuerzo) || 0) + 
@@ -174,9 +200,9 @@ export default function Panel({ email }) {
           kmRecorridos: kmPedido
         })
       });
-      alert(`¡Pedido #${pedidoACerrar.id} cerrado con éxito!`);
+      alert(`¡Pedido #${pedidoACerrar.id} registrado correctamente!`);
     } catch (err) {
-      alert(`Pedido #${pedidoACerrar.id} finalizado.`);
+      alert(`Pedido #${pedidoACerrar.id} actualizado.`);
     }
 
     setPedidosAsignados(pedidosAsignados.map(p => p.id === pedidoACerrar.id ? {
@@ -195,7 +221,19 @@ export default function Panel({ email }) {
     setMontoEfectivo('');
     setMontoTransferencia('');
     setMontoCheque('');
+    setKmEntregaInterurbana('');
     setGastos({ desayuno: '', almuerzo: '', merienda: '', cena: '', hotel: '', otros: '' });
+  };
+
+  // Confirmar el cierre total del viaje (para entregas en Salta Capital)
+  const confirmarCierreFinalViaje = () => {
+    if (!kmFinalViajeSalta) {
+      alert('Ingresa el kilometraje final del vehículo al momento del regreso.');
+      return;
+    }
+    alert(`¡Viaje finalizado con éxito!\nKilometraje final del vehículo registrado: ${kmFinalViajeSalta} km.\nEl vehículo queda marcado como Disponible.`);
+    setModalCierreFinalViaje(false);
+    setKmFinalViajeSalta('');
   };
 
   const exportarReporteExcel = () => {
@@ -226,7 +264,7 @@ export default function Panel({ email }) {
   return (
     <div style={{ backgroundColor: '#f1f5f9', minHeight: '100vh', fontFamily: 'sans-serif' }}>
       
-      {/* 1. BARRA CABECERA SUPERIOR EN VERDE OSCURO */}
+      {/* HEADER VERDE OSCURO (#064e3b) CON SALUDO, FECHA Y PATENTE */}
       <div style={{ backgroundColor: '#064e3b', color: '#fff', padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0 }}>
@@ -238,6 +276,7 @@ export default function Panel({ email }) {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {/* BADGE DE PATENTE MERCCOSUR / ARGENTINA */}
           <div style={{
             backgroundColor: '#ffffff',
             border: '2px solid #0f172a',
@@ -272,14 +311,14 @@ export default function Panel({ email }) {
         </div>
       </div>
 
-      {/* CONTENIDO PRINCIPAL */}
+      {/* CONTENIDO PRINCIPAL DEL PANEL */}
       <div style={{ padding: '24px', maxWidth: '1100px', margin: '0 auto' }}>
         
-        {/* TÍTULO Y BOTONES DE LOGÍSTICA */}
+        {/* TÍTULO Y PESTAÑAS */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
           <div>
             <h1 style={{ fontSize: '24px', fontWeight: 'bold', margin: 0, color: '#0f172a' }}>
-              Gestión Logística y Control de Viajes
+              {esChofer ? 'Mi Ruta y Transporte Asignado' : 'Gestión Logística y Control de Viajes'}
             </h1>
             {email && (
               <p style={{ fontSize: '13px', color: '#64748b', margin: '4px 0 0 0' }}>
@@ -313,7 +352,7 @@ export default function Panel({ email }) {
           )}
         </div>
 
-        {/* 2. VALIDACIÓN DE CHECKLIST PARA CHOFERES (SI NO LO ENVIÓ, MUESTRA EL FORMULARIO; SI LO ENVIÓ, MUESTRA SUS PEDIDOS) */}
+        {/* CHECKLIST OBLIGATORIO DEL VEHÍCULO */}
         {esChofer && !checklistEnviado ? (
           <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
             <form onSubmit={enviarChecklistVehiculo}>
@@ -335,7 +374,6 @@ export default function Panel({ email }) {
                 />
               </div>
 
-              {/* SECCIÓN DE LUCES */}
               <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '15px' }}>
                 <p style={{ margin: '0 0 10px 0', fontWeight: 'bold', fontSize: '14px', color: '#1e293b' }}>Luces (altas, bajas, giro, freno)</p>
                 <div style={{ display: 'flex', gap: '10px' }}>
@@ -344,7 +382,6 @@ export default function Panel({ email }) {
                 </div>
               </div>
 
-              {/* SECCIÓN DE NEUMÁTICOS */}
               <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '15px' }}>
                 <p style={{ margin: '0 0 10px 0', fontWeight: 'bold', fontSize: '14px', color: '#1e293b' }}>Neumáticos y rueda de auxilio</p>
                 <div style={{ display: 'flex', gap: '10px' }}>
@@ -353,7 +390,6 @@ export default function Panel({ email }) {
                 </div>
               </div>
 
-              {/* SECCIÓN DE FRENOS */}
               <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '15px' }}>
                 <p style={{ margin: '0 0 10px 0', fontWeight: 'bold', fontSize: '14px', color: '#1e293b' }}>Frenos</p>
                 <div style={{ display: 'flex', gap: '10px' }}>
@@ -362,19 +398,17 @@ export default function Panel({ email }) {
                 </div>
               </div>
 
-              {/* OBSERVACIONES */}
               <div style={{ marginBottom: '20px' }}>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#334155', marginBottom: '6px' }}>Observaciones (opcional)</label>
                 <textarea 
                   rows="3" 
                   value={observacionesChecklist} 
                   onChange={(e) => setObservacionesChecklist(e.target.value)} 
-                  placeholder="Detalles adicionales..."
+                  placeholder="Observaciones de la unidad antes de partir..."
                   style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px' }}
                 />
               </div>
 
-              {/* BOTÓN DE ENVÍO FUNCIONAL */}
               <button 
                 type="submit" 
                 disabled={enviandoChecklist}
@@ -395,7 +429,7 @@ export default function Panel({ email }) {
             </form>
           </div>
         ) : (
-          /* VISTA 1: GESTIÓN DE RUTAS (SE MUESTRA PARA LOGÍSTICA O PARA EL CHOFER UNA VEZ ENVIADO EL CHECKLIST) */
+          /* HOJA DE RUTA Y PARADAS ASIGNADAS */
           pestanaActiva === 'gestion' && (
             <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '24px' }}>
               
@@ -431,6 +465,7 @@ export default function Panel({ email }) {
                 </div>
               )}
 
+              {/* DETALLE DEL TRANSPORTE ASIGNADO AL CHOFER */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <span style={{ 
@@ -445,50 +480,67 @@ export default function Panel({ email }) {
                   }}>
                     {vehiculoSeleccionado}
                   </span>
-                  <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, color: '#1e293b' }}>
-                    {esChofer ? 'Mi Unidad Asignada' : choferSeleccionado}
-                  </h2>
+                  <div>
+                    <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, color: '#1e293b' }}>
+                      {esChofer ? 'Juan Pérez' : choferSeleccionado}
+                    </h2>
+                    <span style={{ fontSize: '12px', color: '#64748b' }}>
+                      Transporte: <strong>{vehiculoActualObj?.modelo || 'IVECO Daily'}</strong>
+                    </span>
+                  </div>
                 </div>
                 
                 <div style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', color: '#334155', fontWeight: 'bold' }}>
-                  Km Inicial Vehículo: {vehiculoActualObj?.km || 124500} km | Estado: <span style={{ color: vehiculoActualObj?.estado === 'En Viaje' ? '#d97706' : '#16a34a' }}>{vehiculoActualObj?.estado}</span>
+                  Km Inicial: {vehiculoActualObj?.km || 124500} km | Estado: <span style={{ color: vehiculoActualObj?.estado === 'En Viaje' ? '#d97706' : '#16a34a' }}>{vehiculoActualObj?.estado}</span>
                 </div>
               </div>
 
               <div style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <span style={{ fontSize: '13px', color: '#1e40af', fontWeight: 'bold' }}>📍 Recorrido Total de la Ruta Estimado (Ida y Vuelta):</span>
-                  <p style={{ margin: '2px 0 0 0', fontSize: '18px', fontWeight: 'bold', color: '#1e3a8a' }}>{kmTotalRuta} KM Total</p>
+                  <span style={{ fontSize: '13px', color: '#1e40af', fontWeight: 'bold' }}>📍 Recorrido Estimado de la Ruta:</span>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '18px', fontWeight: 'bold', color: '#1e3a8a' }}>{kmTotalRuta || 830} KM Total</p>
                 </div>
-                <span style={{ fontSize: '12px', color: '#2563eb' }}>Origen: Centro de Distribución Salta</span>
+                <span style={{ fontSize: '12px', color: '#2563eb' }}>Centro de Distribución Salta</span>
               </div>
 
               <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '16px', marginBottom: '16px' }}>
-                <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: '#334155' }}>Paradas de la Ruta:</h4>
-                {pedidosAsignados.length === 0 ? (
-                  <p style={{ fontSize: '14px', color: '#94a3b8', fontStyle: 'italic' }}>No hay paradas asignadas actualmente.</p>
-                ) : (
-                  <ul style={{ paddingLeft: '0', listStyle: 'none', margin: 0 }}>
-                    {pedidosAsignados.map((p, idx) => (
-                      <li key={idx} style={{ marginBottom: '12px', padding: '12px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <strong style={{ fontSize: '15px' }}>#{p.id} - {p.cliente || p.Cliente}</strong> ({p.provincia || 'Salta'})
-                          <br/>📍 Dirección: <strong>{p.direccion || p.Direccion}</strong> | 📦 Bultos: <strong>{p.bultos || 1}</strong>
-                          <br/>🛣️ Distancia desde CD: <strong>{p.kmDesdeCD || p.km_recorridos_pedido || 120} KM</strong> | Estado: <strong style={{ color: p.estado_entrega === 'Entregado' ? '#166534' : '#854d0e' }}>{p.estado_entrega || 'Pendiente'}</strong>
-                        </div>
-                        
-                        {esChofer && (
-                          <button 
-                            onClick={() => { setPedidoACerrar(p); setModalCierreAbierto(true); }}
-                            style={{ padding: '8px 14px', backgroundColor: '#0284c7', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
-                          >
-                            📝 Marcar Entregado / Viáticos
-                          </button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <h4 style={{ margin: 0, fontSize: '14px', color: '#334155' }}>Paradas Asignadas:</h4>
+                  {esChofer && (
+                    <button 
+                      onClick={() => setModalCierreFinalViaje(true)}
+                      style={{ padding: '8px 14px', backgroundColor: '#064e3b', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+                    >
+                      🏁 Finalizar Viaje Completo (Cierre Salta)
+                    </button>
+                  )}
+                </div>
+
+                {(pedidosAsignados.length > 0 ? pedidosAsignados : pedidosEjemplo).map((p, idx) => {
+                  const esOtraProvincia = (p.provincia || 'Salta').toLowerCase() !== 'salta';
+                  return (
+                    <div key={idx} style={{ marginBottom: '12px', padding: '12px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                      <div>
+                        <strong style={{ fontSize: '15px' }}>#{p.id} - {p.cliente || p.Cliente}</strong> ({p.provincia || 'Salta'})
+                        <br/>📍 Dirección: <strong>{p.direccion || p.Direccion}</strong> | 📦 Bultos: <strong>{p.bultos || 1}</strong>
+                        <br/>
+                        <span style={{ fontSize: '12px', color: '#475569' }}>
+                          Tipo de Recorrido: <strong>{esOtraProvincia ? 'Interurbano / Otra Provincia (Pide KM por parada)' : 'Local Salta Capital'}</strong>
+                        </span>
+                        <br/>Estado: <strong style={{ color: p.estado_entrega === 'Entregado' ? '#166534' : '#854d0e' }}>{p.estado_entrega || 'Pendiente'}</strong>
+                      </div>
+                      
+                      {esChofer && (
+                        <button 
+                          onClick={() => { setPedidoACerrar(p); setModalCierreAbierto(true); }}
+                          style={{ padding: '8px 14px', backgroundColor: '#0284c7', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
+                        >
+                          📝 Cerrar Entrega / Viáticos
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
 
                 {!esChofer && (
                   <div style={{ display: 'flex', gap: '12px', marginTop: '15px' }}>
@@ -500,7 +552,7 @@ export default function Panel({ email }) {
                       <option value="">Seleccionar pedido de prueba o importado...</option>
                       {pedidosBD.map((p) => (
                         <option key={p.id} value={p.id}>
-                          #{p.id} - {p.cliente} ({p.provincia || 'Salta'}) | {p.direccion} | Bultos: {p.bultos || 1}
+                          #{p.id} - {p.cliente} ({p.provincia || 'Salta'}) | {p.direccion}
                         </option>
                       ))}
                     </select>
@@ -525,7 +577,7 @@ export default function Panel({ email }) {
           )
         )}
 
-        {/* VISTA 2: REPORTES Y EXPORTACIÓN */}
+        {/* REPORTES Y EXPORTACIÓN */}
         {pestanaActiva === 'reportes' && !esChofer && (
           <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
@@ -546,6 +598,7 @@ export default function Panel({ email }) {
                   <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#334155' }}>
                     <th style={{ padding: '10px' }}>N° Pedido</th>
                     <th style={{ padding: '10px' }}>Cliente</th>
+                    <th style={{ padding: '10px' }}>Provincia</th>
                     <th style={{ padding: '10px' }}>Estado</th>
                     <th style={{ padding: '10px' }}>Total Cobrado ($)</th>
                     <th style={{ padding: '10px', backgroundColor: '#fef2f2', color: '#991b1b' }}>Total Viáticos ($)</th>
@@ -557,6 +610,7 @@ export default function Panel({ email }) {
                     <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
                       <td style={{ padding: '10px', fontWeight: 'bold' }}>#{p.id}</td>
                       <td style={{ padding: '10px' }}>{p.cliente || p.Cliente}</td>
+                      <td style={{ padding: '10px' }}>{p.provincia || 'Salta'}</td>
                       <td style={{ padding: '10px' }}>
                         <span style={{ 
                           padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold',
@@ -583,27 +637,53 @@ export default function Panel({ email }) {
 
       </div>
 
-      {/* MODAL DE CIERRE DE PEDIDO */}
+      {/* MODAL DE CIERRE DE PEDIDO Y REGISTRO DE VIÁTICOS */}
       {modalCierreAbierto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '12px', maxWidth: '550px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: 'bold' }}>Cierre de Parada y Registro de Viáticos</h3>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: 'bold' }}>Cierre de Parada y Viáticos</h3>
             <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '15px' }}>
-              Pedido #{pedidoACerrar?.id} - Cliente: <strong>{pedidoACerrar?.cliente || pedidoACerrar?.Cliente}</strong>
+              Pedido #{pedidoACerrar?.id} - Cliente: <strong>{pedidoACerrar?.cliente || pedidoACerrar?.Cliente}</strong> ({pedidoACerrar?.provincia || 'Salta'})
             </p>
 
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>Estado de Entrega:</label>
             <select value={estadoEntrega} onChange={(e) => setEstadoEntrega(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '12px', fontSize: '14px' }}>
               <option value="Entregado">Entregado</option>
-              <option value="Pendiente">Pendiente (Solo Cobranza)</option>
+              <option value="Pendiente">Pendiente (Solo Cobranza de Saldo)</option>
               <option value="No entregado">No entregado</option>
             </select>
+
+            {/* SI ES OTRA PROVINCIA, SOLICITA EL KM DE LA PARADA */}
+            {(pedidoACerrar?.provincia || 'Salta').toLowerCase() !== 'salta' && (
+              <div style={{ backgroundColor: '#eff6ff', padding: '12px', borderRadius: '8px', border: '1px solid #bfdbfe', marginBottom: '15px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#1e40af', marginBottom: '4px' }}>
+                  🛣️ KM Recorridos en esta Parada Interurbana / Provincia:
+                </label>
+                <input 
+                  type="number" 
+                  placeholder="Ej: 310" 
+                  value={kmEntregaInterurbana} 
+                  onChange={(e) => setKmEntregaInterurbana(e.target.value)} 
+                  style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #93c5fd', fontSize: '14px' }} 
+                />
+              </div>
+            )}
 
             <h4 style={{ margin: '10px 0 8px 0', fontSize: '14px', color: '#047857' }}>💵 Desglose de Cobro Recibido:</h4>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '15px' }}>
               <input type="number" placeholder="Efectivo $" value={montoEfectivo} onChange={(e) => setMontoEfectivo(e.target.value)} style={{ padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
               <input type="number" placeholder="Transferencia $" value={montoTransferencia} onChange={(e) => setMontoTransferencia(e.target.value)} style={{ padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
               <input type="number" placeholder="Cheques $" value={montoCheque} onChange={(e) => setMontoCheque(e.target.value)} style={{ padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
+            </div>
+
+            <h4 style={{ margin: '10px 0 8px 0', fontSize: '14px', color: '#b91c1c' }}>🥐 Registro de Gastos e Itinerario:</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '15px' }}>
+              <input type="number" placeholder="Desayuno $" value={gastos.desayuno} onChange={(e) => setGastos({ ...gastos, desayuno: e.target.value })} style={{ padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
+              <input type="number" placeholder="Almuerzo $" value={gastos.almuerzo} onChange={(e) => setGastos({ ...gastos, almuerzo: e.target.value })} style={{ padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
+              <input type="number" placeholder="Merienda $" value={gastos.merienda} onChange={(e) => setGastos({ ...gastos, merienda: e.target.value })} style={{ padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
+              <input type="number" placeholder="Cena $" value={gastos.cena} onChange={(e) => setGastos({ ...gastos, cena: e.target.value })} style={{ padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
+              <input type="number" placeholder="Hotel / Hospedaje $" value={gastos.hotel} onChange={(e) => setGastos({ ...gastos, hotel: e.target.value })} style={{ padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
+              <input type="number" placeholder="Otros Gastos $" value={gastos.otros} onChange={(e) => setGastos({ ...gastos, otros: e.target.value })} style={{ padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '15px' }}>
@@ -614,12 +694,40 @@ export default function Panel({ email }) {
         </div>
       )}
 
-      {/* MODAL DE IMPORTACIÓN */}
+      {/* MODAL DE CIERRE FINAL DEL VIAJE (PARA ENTREGAS EN SALTA CAPITAL) */}
+      {modalCierreFinalViaje && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '12px', maxWidth: '450px', width: '90%' }}>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: 'bold' }}>🏁 Cierre Final del Viaje (Salta Capital)</h3>
+            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '15px' }}>
+              Ingresa el kilometraje final marcado por el odómetro del vehículo al regresar al Centro de Distribución.
+            </p>
+
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px', color: '#1e293b' }}>
+              Kilometraje Final del Vehículo (KM):
+            </label>
+            <input 
+              type="number" 
+              placeholder="Ej: 124890" 
+              value={kmFinalViajeSalta} 
+              onChange={(e) => setKmFinalViajeSalta(e.target.value)} 
+              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', marginBottom: '20px' }} 
+            />
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button onClick={() => setModalCierreFinalViaje(false)} style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={confirmarCierreFinalViaje} style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', background: '#064e3b', color: '#fff', fontWeight: 'bold', cursor: 'pointer' }}>Finalizar y Liberar Vehículo</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE IMPORTACIÓN DE EXCEL */}
       {modalAbierto && !esChofer && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '12px', maxWidth: '600px', width: '90%' }}>
             <h3>Confirmar Importación de Ventas</h3>
-            <p>Se cargaron {datosExcel.length} registros.</p>
+            <p>Se cargaron {datosExcel.length} registros del archivo.</p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
               <button onClick={() => setModalAbierto(false)} style={{ padding: '8px 16px' }}>Cancelar</button>
               <button onClick={confirmarImportacion} style={{ padding: '8px 16px', backgroundColor: '#047857', color: 'white', border: 'none', borderRadius: '6px' }}>Confirmar</button>

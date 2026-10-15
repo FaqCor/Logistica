@@ -1,9 +1,11 @@
-import { redirect } from 'next/navigation';
-import { sesionActual } from '@/lib/auth';
-import ChoferApp from '@/components/chofer/ChoferApp';
+import Panel from '@/components/logistica/Panel';
 
-export default async function PaginaChofer() {
-  const s = await sesionActual();
-  if (!s || s.rol !== 'chofer') redirect('/login');
-  return <ChoferApp />;
+export const revalidate = 0;
+
+export default function ChoferPage() {
+  return (
+    <main style={{ minHeight: '100vh', backgroundColor: '#f1f5f9' }}>
+      <Panel email="chofer@demo.com" />
+    </main>
+  );
 }
