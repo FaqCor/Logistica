@@ -26,12 +26,24 @@ export default function Panel({ email }) {
   const [pedidosAsignados, setPedidosAsignados] = useState([]);
   const [pedidoSeleccionado, setPedidoSeleccionado] = useState('');
 
+  // --- PASO 1: NUEVOS ESTADOS PARA GESTIÓN DE FLOTA Y PERSONAL (CHOFERES Y AYUDANTES) ---
+  const [personalEmpresa, setPersonalEmpresa] = useState([
+    { id: 1, nombre: 'Juan Pérez', rol: 'Chofer', email: 'chofer@demo.com', telefono: '3874556677' },
+    { id: 2, nombre: 'Carlos Gómez', rol: 'Chofer', email: 'carlos@dmmaestro.com', telefono: '3875112233' },
+    { id: 3, nombre: 'Esteban Mamaní', rol: 'Ayudante', email: 'esteban@dmmaestro.com', telefono: '3876221144' }
+  ]);
+
+  const [nuevoNombrePersonal, setNuevoNombrePersonal] = useState('');
+  const [nuevoRolPersonal, setNuevoRolPersonal] = useState('Chofer');
+  const [nuevoEmailPersonal, setNuevoEmailPersonal] = useState('');
+  const [nuevoTelPersonal, setNuevoTelPersonal] = useState('');
+
+  const [nuevoDominioVehiculo, setNuevoDominioVehiculo] = useState('');
+  const [nuevoModeloVehiculo, setNuevoModeloVehiculo] = useState('');
+  const [nuevoKmVehiculo, setNuevoKmVehiculo] = useState('');
+
   // Flota y choferes
-  const listaChoferes = [
-    { id: 1, nombre: 'Juan Pérez (chofer@demo.com)' },
-    { id: 2, nombre: 'Carlos Gómez' },
-    { id: 3, nombre: 'Marcos Ruiz' }
-  ];
+  const listaChoferes = personalEmpresa.filter(p => p.rol === 'Chofer');
 
   const [flotaVehiculos, setFlotaVehiculos] = useState([
     { dominio: 'NEB732', modelo: 'IVECO Daily', km: 124500, estado: 'Disponible', enMantenimiento: false },
@@ -39,7 +51,7 @@ export default function Panel({ email }) {
     { dominio: 'AD172YF', modelo: 'Mercedes Benz Atego', km: 210400, estado: 'Disponible', enMantenimiento: false }
   ]);
 
-  const [choferSeleccionado, setChoferSeleccionado] = useState(listaChoferes[0].nombre);
+  const [choferSeleccionado, setChoferSeleccionado] = useState(listaChoferes[0]?.nombre || 'Juan Pérez');
   const [vehiculoSeleccionado, setVehiculoSeleccionado] = useState(flotaVehiculos[0].dominio);
 
   // Pedidos iniciales
@@ -72,6 +84,51 @@ export default function Panel({ email }) {
     otros: ''
   });
 
+  // --- PASO 2: FUNCIONES PARA REGISTRAR PERSONAL Y VEHÍCULOS ---
+  const agregarPersonal = (e) => {
+    e.preventDefault();
+    if (!nuevoNombrePersonal) {
+      alert('Por favor, ingresa el nombre del personal.');
+      return;
+    }
+
+    const nuevoEmpleado = {
+      id: personalEmpresa.length + 1,
+      nombre: nuevoNombrePersonal,
+      rol: nuevoRolPersonal,
+      email: nuevoEmailPersonal || 'sincorreo@dmmaestro.com',
+      telefono: nuevoTelPersonal || 'Sin teléfono'
+    };
+
+    setPersonalEmpresa([...personalEmpresa, nuevoEmpleado]);
+    setNuevoNombrePersonal('');
+    setNuevoEmailPersonal('');
+    setNuevoTelPersonal('');
+    alert(`¡${nuevoRolPersonal} "${nuevoEmpleado.nombre}" registrado con éxito!`);
+  };
+
+  const agregarVehiculo = (e) => {
+    e.preventDefault();
+    if (!nuevoDominioVehiculo || !nuevoModeloVehiculo) {
+      alert('Por favor, ingresa la patente (dominio) y el modelo.');
+      return;
+    }
+
+    const nuevoVeh = {
+      dominio: nuevoDominioVehiculo.toUpperCase(),
+      modelo: nuevoModeloVehiculo,
+      km: parseFloat(nuevoKmVehiculo) || 0,
+      estado: 'Disponible',
+      enMantenimiento: false
+    };
+
+    setFlotaVehiculos([...flotaVehiculos, nuevoVeh]);
+    setNuevoDominioVehiculo('');
+    setNuevoModeloVehiculo('');
+    setNuevoKmVehiculo('');
+    alert(`¡Vehículo patente ${nuevoVeh.dominio} añadido a la flota correctamente!`);
+  };
+
   // Cargar pedidos desde la BD
   const cargarPedidos = async () => {
     try {
@@ -82,7 +139,7 @@ export default function Panel({ email }) {
         setPedidosBD(data.pedidos);
       }
     } catch (err) {
-      console.warn('Utilizando datos locales o cargados previamente.');
+      console.warn('Utilizando datos locales.');
     }
   };
 
@@ -90,13 +147,12 @@ export default function Panel({ email }) {
     cargarPedidos();
   }, []);
 
-  // SINCRONIZACIÓN EN TIEMPO REAL: Refresca pedidos al cambiar a 'reportes' o mediante polling continuo
   useEffect(() => {
     if (!esChofer) {
       cargarPedidos();
       const interval = setInterval(() => {
         cargarPedidos();
-      }, 5000); // Consulta cada 5 segundos
+      }, 5000);
       return () => clearInterval(interval);
     }
   }, [pestanaActiva, esChofer]);
@@ -179,7 +235,6 @@ export default function Panel({ email }) {
     alert(`¡Ruta optimizada!\nKilometraje total de ruta estimado: ${kmTotalCalculado} km.`);
   };
 
-  // Guardar Cierre de Entrega por el Chofer (Actualiza BD y Estado Local)
   const guardarCierreChofer = async () => {
     if (!pedidoACerrar) return;
 
@@ -215,10 +270,9 @@ export default function Panel({ email }) {
       });
       alert(`¡Pedido #${pedidoACerrar.id} registrado correctamente!`);
     } catch (err) {
-      console.warn('Error guardando en backend, actualizando localmente.');
+      console.warn('Error guardando en backend.');
     }
 
-    // Actualización inmediata en las listas locales
     const actualizarLista = (lista) => lista.map(p => p.id === pedidoACerrar.id ? {
       ...p,
       estado_entrega: estadoEntrega,
@@ -241,7 +295,6 @@ export default function Panel({ email }) {
     setKmEntregaInterurbana('');
     setGastos({ desayuno: '', almuerzo: '', merienda: '', cena: '', hotel: '', otros: '' });
     
-    // Refrescar BD
     cargarPedidos();
   };
 
@@ -286,7 +339,7 @@ export default function Panel({ email }) {
   return (
     <div style={{ backgroundColor: '#f1f5f9', minHeight: '100vh', fontFamily: 'sans-serif' }}>
       
-      {/* HEADER VERDE OSCURO (#064e3b) CON SALUDO, FECHA Y PATENTE */}
+      {/* HEADER VERDE OSCURO */}
       <div style={{ backgroundColor: '#064e3b', color: '#fff', padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0 }}>
@@ -335,7 +388,7 @@ export default function Panel({ email }) {
       {/* CONTENIDO PRINCIPAL */}
       <div style={{ padding: '24px', maxWidth: '1100px', margin: '0 auto' }}>
         
-        {/* TÍTULO Y BOTONES DE LOGÍSTICA */}
+        {/* TÍTULO Y PASO 3: BOTONERA DE NAVEGACIÓN */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
           <div>
             <h1 style={{ fontSize: '24px', fontWeight: 'bold', margin: 0, color: '#0f172a' }}>
@@ -349,7 +402,7 @@ export default function Panel({ email }) {
           </div>
           
           {!esChofer && (
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
               <button 
                 onClick={() => { setPestanaActiva('gestion'); cargarPedidos(); }}
                 style={{ backgroundColor: pestanaActiva === 'gestion' ? '#1e293b' : '#64748b', color: 'white', border: 'none', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}
@@ -362,6 +415,15 @@ export default function Panel({ email }) {
               >
                 📊 Reportes y Exportación
               </button>
+
+              {/* BOTÓN PASO 3: FLOTA Y PERSONAL */}
+              <button 
+                onClick={() => setPestanaActiva('flotaPersonal')}
+                style={{ backgroundColor: pestanaActiva === 'flotaPersonal' ? '#1e293b' : '#64748b', color: 'white', border: 'none', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}
+              >
+                🚚 Flota y Personal
+              </button>
+
               <button 
                 onClick={() => document.getElementById('inputExcelVentas').click()}
                 style={{ backgroundColor: '#047857', color: 'white', border: 'none', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}
@@ -450,7 +512,7 @@ export default function Panel({ email }) {
             </form>
           </div>
         ) : (
-          /* HOJA DE RUTA Y PARADAS ASIGNADAS */
+          /* PESTAÑA 1: GESTIÓN DE RUTAS */
           pestanaActiva === 'gestion' && (
             <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '24px' }}>
               
@@ -601,7 +663,7 @@ export default function Panel({ email }) {
           )
         )}
 
-        {/* VISTA 2: REPORTES Y EXPORTACIÓN A EXCEL (SINCRONIZADO EN TIEMPO REAL) */}
+        {/* PESTAÑA 2: REPORTES Y EXPORTACIÓN */}
         {pestanaActiva === 'reportes' && !esChofer && (
           <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
@@ -659,9 +721,185 @@ export default function Panel({ email }) {
           </div>
         )}
 
+        {/* PASO 4: PESTAÑA DE FLOTA Y PERSONAL */}
+        {pestanaActiva === 'flotaPersonal' && !esChofer && (
+          <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <h3 style={{ margin: '0 0 20px 0', fontSize: '20px', fontWeight: 'bold', color: '#0f172a' }}>
+              🏢 Administración de Flota y Personal (Choferes y Ayudantes)
+            </h3>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+              
+              {/* FORMULARIO PERSONAL */}
+              <div style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                <h4 style={{ margin: '0 0 15px 0', color: '#064e3b', fontSize: '16px' }}>➕ Registrar Nuevo Personal</h4>
+                <form onSubmit={agregarPersonal}>
+                  <div style={{ marginBottom: '12px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Nombre y Apellido:</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ej: Marcos Ruiz" 
+                      value={nuevoNombrePersonal} 
+                      onChange={(e) => setNuevoNombrePersonal(e.target.value)} 
+                      style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                      required 
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: '12px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Clasificación / Rol:</label>
+                    <select 
+                      value={nuevoRolPersonal} 
+                      onChange={(e) => setNuevoRolPersonal(e.target.value)} 
+                      style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#fff' }}
+                    >
+                      <option value="Chofer">Chofer</option>
+                      <option value="Ayudante">Ayudante</option>
+                    </select>
+                  </div>
+
+                  <div style={{ marginBottom: '12px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Correo Electrónico:</label>
+                    <input 
+                      type="email" 
+                      placeholder="correo@dmmaestro.com" 
+                      value={nuevoEmailPersonal} 
+                      onChange={(e) => setNuevoEmailPersonal(e.target.value)} 
+                      style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: '15px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Teléfono / Celular:</label>
+                    <input 
+                      type="text" 
+                      placeholder="387..." 
+                      value={nuevoTelPersonal} 
+                      onChange={(e) => setNuevoTelPersonal(e.target.value)} 
+                      style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
+                    />
+                  </div>
+
+                  <button type="submit" style={{ width: '100%', padding: '10px', backgroundColor: '#047857', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
+                    Guardar Personal
+                  </button>
+                </form>
+              </div>
+
+              {/* FORMULARIO VEHÍCULO */}
+              <div style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                <h4 style={{ margin: '0 0 15px 0', color: '#064e3b', fontSize: '16px' }}>🚛 Registrar Nuevo Vehículo (Flota)</h4>
+                <form onSubmit={agregarVehiculo}>
+                  <div style={{ marginBottom: '12px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Patente / Dominio:</label>
+                    <input 
+                      type="text" 
+                      placeholder="AE123ZZ" 
+                      value={nuevoDominioVehiculo} 
+                      onChange={(e) => setNuevoDominioVehiculo(e.target.value)} 
+                      style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', textTransform: 'uppercase' }}
+                      required 
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: '12px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Modelo / Tipo:</label>
+                    <input 
+                      type="text" 
+                      placeholder="Mercedes Benz Sprinter" 
+                      value={nuevoModeloVehiculo} 
+                      onChange={(e) => setNuevoModeloVehiculo(e.target.value)} 
+                      style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                      required 
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: '25px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Kilometraje Inicial:</label>
+                    <input 
+                      type="number" 
+                      placeholder="0" 
+                      value={nuevoKmVehiculo} 
+                      onChange={(e) => setNuevoKmVehiculo(e.target.value)} 
+                      style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
+                    />
+                  </div>
+
+                  <button type="submit" style={{ width: '100%', padding: '10px', backgroundColor: '#0284c7', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
+                    Añadir a la Flota
+                  </button>
+                </form>
+              </div>
+
+            </div>
+
+            {/* TABLAS LISTADOS */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+              
+              <div>
+                <h4 style={{ margin: '0 0 10px 0', color: '#1e293b' }}>👥 Plantel Registrado (Choferes y Ayudantes)</h4>
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
+                        <th style={{ padding: '8px' }}>Nombre</th>
+                        <th style={{ padding: '8px' }}>Rol</th>
+                        <th style={{ padding: '8px' }}>Contacto</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {personalEmpresa.map((p, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '8px', fontWeight: 'bold' }}>{p.nombre}</td>
+                          <td style={{ padding: '8px' }}>
+                            <span style={{ 
+                              padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold',
+                              backgroundColor: p.rol === 'Chofer' ? '#dcfce7' : '#e0f2fe',
+                              color: p.rol === 'Chofer' ? '#166534' : '#0369a1'
+                            }}>
+                              {p.rol}
+                            </span>
+                          </td>
+                          <td style={{ padding: '8px', color: '#64748b' }}>{p.telefono}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div>
+                <h4 style={{ margin: '0 0 10px 0', color: '#1e293b' }}>🚛 Vehículos de la Flota</h4>
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
+                        <th style={{ padding: '8px' }}>Patente</th>
+                        <th style={{ padding: '8px' }}>Modelo</th>
+                        <th style={{ padding: '8px' }}>Km Actual</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {flotaVehiculos.map((v, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '8px', fontWeight: 'bold', fontFamily: 'monospace' }}>{v.dominio}</td>
+                          <td style={{ padding: '8px' }}>{v.modelo}</td>
+                          <td style={{ padding: '8px', color: '#0284c7', fontWeight: 'bold' }}>{v.km} km</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+        )}
+
       </div>
 
-      {/* MODAL DE CIERRE DE PEDIDO Y REGISTRO DE VIÁTICOS */}
+      {/* MODAL CIERRE PEDIDO */}
       {modalCierreAbierto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '12px', maxWidth: '550px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -717,7 +955,7 @@ export default function Panel({ email }) {
         </div>
       )}
 
-      {/* MODAL DE CIERRE FINAL DEL VIAJE */}
+      {/* MODAL CIERRE FINAL VIAJE */}
       {modalCierreFinalViaje && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '12px', maxWidth: '450px', width: '90%' }}>
@@ -745,7 +983,7 @@ export default function Panel({ email }) {
         </div>
       )}
 
-      {/* MODAL DE IMPORTACIÓN */}
+      {/* MODAL IMPORTACIÓN */}
       {modalAbierto && !esChofer && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '12px', maxWidth: '600px', width: '90%' }}>
