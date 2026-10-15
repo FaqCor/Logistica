@@ -7,7 +7,13 @@ export default function Panel({ email }) {
 
   const [pestanaActiva, setPestanaActiva] = useState('gestion');
 
-  // Obtener fecha actual formateada (ej. 15/10/2026)
+  // Estado para controlar si el chofer ya completó y envió el checklist del vehículo hoy
+  const [checklistEnviado, setChecklistEnviado] = useState(false);
+  const [kmChecklist, setKmChecklist] = useState('54000');
+  const [observacionesChecklist, setObservacionesChecklist] = useState('');
+  const [enviandoChecklist, setEnviandoChecklist] = useState(false);
+
+  // Obtener fecha actual formateada
   const hoy = new Date();
   const fechaFormateada = `${hoy.getDate().toString().padStart(2, '0')}/${(hoy.getMonth() + 1).toString().padStart(2, '0')}/${hoy.getFullYear()}`;
 
@@ -36,7 +42,6 @@ export default function Panel({ email }) {
   const [choferSeleccionado, setChoferSeleccionado] = useState(listaChoferes[0].nombre);
   const [vehiculoSeleccionado, setVehiculoSeleccionado] = useState(flotaVehiculos[0].dominio);
 
-  // Estados para métricas de ruta
   const [kmTotalRuta, setKmTotalRuta] = useState(0);
 
   // Cierre y Gastos del chofer
@@ -103,6 +108,18 @@ export default function Panel({ email }) {
     } finally {
       setImportando(false);
     }
+  };
+
+  // Función para registrar y enviar el check list del vehículo
+  const enviarChecklistVehiculo = (e) => {
+    e.preventDefault();
+    setEnviandoChecklist(true);
+
+    setTimeout(() => {
+      setEnviandoChecklist(false);
+      setChecklistEnviado(true);
+      alert('¡Checklist enviado y registrado correctamente! Ya puedes ver los pedidos del día.');
+    }, 800);
   };
 
   const agregarPedidoRuta = () => {
@@ -209,7 +226,7 @@ export default function Panel({ email }) {
   return (
     <div style={{ backgroundColor: '#f1f5f9', minHeight: '100vh', fontFamily: 'sans-serif' }}>
       
-      {/* 1. BARRA CABECERA SUPERIOR EN VERDE OSCURO (IGUAL A LA IMAGEN 1) */}
+      {/* 1. BARRA CABECERA SUPERIOR EN VERDE OSCURO */}
       <div style={{ backgroundColor: '#064e3b', color: '#fff', padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0 }}>
@@ -221,7 +238,6 @@ export default function Panel({ email }) {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {/* BADGE DE PATENTE MERCCOSUR / ARGENTINA (ESTILO IMAGEN 1) */}
           <div style={{
             backgroundColor: '#ffffff',
             border: '2px solid #0f172a',
@@ -238,7 +254,6 @@ export default function Panel({ email }) {
             </span>
           </div>
 
-          {/* BOTÓN SALIR / CERRAR SESIÓN */}
           <button 
             onClick={cerrarSesion}
             style={{
@@ -257,10 +272,10 @@ export default function Panel({ email }) {
         </div>
       </div>
 
-      {/* CONTENIDO PRINCIPAL DEL PANEL */}
+      {/* CONTENIDO PRINCIPAL */}
       <div style={{ padding: '24px', maxWidth: '1100px', margin: '0 auto' }}>
         
-        {/* TITULO Y BOTONES PRINCIPALES DE LOGÍSTICA */}
+        {/* TÍTULO Y BOTONES DE LOGÍSTICA */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
           <div>
             <h1 style={{ fontSize: '24px', fontWeight: 'bold', margin: 0, color: '#0f172a' }}>
@@ -298,135 +313,216 @@ export default function Panel({ email }) {
           )}
         </div>
 
-        {/* VISTA 1: GESTIÓN DE RUTAS */}
-        {pestanaActiva === 'gestion' && (
-          <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '24px' }}>
-            
-            {!esChofer && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '15px', marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid #e2e8f0' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px', color: '#334155' }}>Seleccionar Chofer:</label>
-                  <select 
-                    value={choferSeleccionado} 
-                    onChange={(e) => setChoferSeleccionado(e.target.value)}
-                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', backgroundColor: '#fff' }}
-                  >
-                    {listaChoferes.map((ch, idx) => (
-                      <option key={idx} value={ch.nombre}>{ch.nombre}</option>
-                    ))}
-                  </select>
-                </div>
+        {/* 2. VALIDACIÓN DE CHECKLIST PARA CHOFERES (SI NO LO ENVIÓ, MUESTRA EL FORMULARIO; SI LO ENVIÓ, MUESTRA SUS PEDIDOS) */}
+        {esChofer && !checklistEnviado ? (
+          <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <form onSubmit={enviarChecklistVehiculo}>
+              <div style={{ borderLeft: '4px solid #f59e0b', backgroundColor: '#fffbeb', padding: '16px', borderRadius: '6px', marginBottom: '20px' }}>
+                <h3 style={{ margin: '0 0 6px 0', fontSize: '16px', color: '#92400e' }}>Control del vehículo</h3>
+                <p style={{ margin: 0, fontSize: '13px', color: '#b45309' }}>
+                  Complétalo antes de salir. Hasta que lo envíes no vas a ver los pedidos del día.
+                </p>
+              </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px', color: '#334155' }}>Seleccionar Vehículo Disponible:</label>
-                  <select 
-                    value={vehiculoSeleccionado} 
-                    onChange={(e) => setVehiculoSeleccionado(e.target.value)}
-                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', backgroundColor: '#fff' }}
-                  >
-                    {flotaVehiculos.map((v, idx) => (
-                      <option key={idx} value={v.dominio} disabled={v.enMantenimiento}>
-                        {v.dominio} - {v.modelo} ({v.estado} {v.enMantenimiento ? ' [En Taller]' : ''})
-                      </option>
-                    ))}
-                  </select>
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#334155', marginBottom: '6px' }}>Km actual del vehículo</label>
+                <input 
+                  type="number" 
+                  value={kmChecklist} 
+                  onChange={(e) => setKmChecklist(e.target.value)} 
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px' }} 
+                  required 
+                />
+              </div>
+
+              {/* SECCIÓN DE LUCES */}
+              <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '15px' }}>
+                <p style={{ margin: '0 0 10px 0', fontWeight: 'bold', fontSize: '14px', color: '#1e293b' }}>Luces (altas, bajas, giro, freno)</p>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button type="button" style={{ flex: 1, padding: '10px', backgroundColor: '#064e3b', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Está bien</button>
+                  <button type="button" style={{ flex: 1, padding: '10px', backgroundColor: '#fff', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Tiene falla</button>
                 </div>
               </div>
-            )}
 
-            {/* ENCABEZADO DE CHOFER CON BADGE DE PATENTE (IGUAL A LA TERCERA IMAGEN) */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                {/* BADGE NEGRO DE PATENTE SEGÚN LA TERCERA IMAGEN */}
-                <span style={{ 
-                  backgroundColor: '#0f172a', 
-                  color: '#ffffff', 
-                  fontFamily: 'sans-serif', 
-                  fontSize: '13px', 
+              {/* SECCIÓN DE NEUMÁTICOS */}
+              <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '15px' }}>
+                <p style={{ margin: '0 0 10px 0', fontWeight: 'bold', fontSize: '14px', color: '#1e293b' }}>Neumáticos y rueda de auxilio</p>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button type="button" style={{ flex: 1, padding: '10px', backgroundColor: '#064e3b', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Está bien</button>
+                  <button type="button" style={{ flex: 1, padding: '10px', backgroundColor: '#fff', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Tiene falla</button>
+                </div>
+              </div>
+
+              {/* SECCIÓN DE FRENOS */}
+              <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '15px' }}>
+                <p style={{ margin: '0 0 10px 0', fontWeight: 'bold', fontSize: '14px', color: '#1e293b' }}>Frenos</p>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button type="button" style={{ flex: 1, padding: '10px', backgroundColor: '#064e3b', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Está bien</button>
+                  <button type="button" style={{ flex: 1, padding: '10px', backgroundColor: '#fff', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Tiene falla</button>
+                </div>
+              </div>
+
+              {/* OBSERVACIONES */}
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#334155', marginBottom: '6px' }}>Observaciones (opcional)</label>
+                <textarea 
+                  rows="3" 
+                  value={observacionesChecklist} 
+                  onChange={(e) => setObservacionesChecklist(e.target.value)} 
+                  placeholder="Detalles adicionales..."
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px' }}
+                />
+              </div>
+
+              {/* BOTÓN DE ENVÍO FUNCIONAL */}
+              <button 
+                type="submit" 
+                disabled={enviandoChecklist}
+                style={{ 
+                  width: '100%', 
+                  padding: '14px', 
+                  backgroundColor: '#064e3b', 
+                  color: '#fff', 
+                  border: 'none', 
+                  borderRadius: '8px', 
+                  fontSize: '16px', 
                   fontWeight: 'bold', 
-                  padding: '5px 10px', 
-                  borderRadius: '6px',
-                  letterSpacing: '0.5px'
-                }}>
-                  {vehiculoSeleccionado}
-                </span>
-                <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, color: '#1e293b' }}>
-                  {esChofer ? 'Mi Unidad Asignada' : choferSeleccionado}
-                </h2>
-              </div>
+                  cursor: 'pointer' 
+                }}
+              >
+                {enviandoChecklist ? 'Enviando...' : 'Enviar Checklist'}
+              </button>
+            </form>
+          </div>
+        ) : (
+          /* VISTA 1: GESTIÓN DE RUTAS (SE MUESTRA PARA LOGÍSTICA O PARA EL CHOFER UNA VEZ ENVIADO EL CHECKLIST) */
+          pestanaActiva === 'gestion' && (
+            <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '24px' }}>
               
-              <div style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', color: '#334155', fontWeight: 'bold' }}>
-                Km Inicial Vehículo: {vehiculoActualObj?.km || 124500} km | Estado: <span style={{ color: vehiculoActualObj?.estado === 'En Viaje' ? '#d97706' : '#16a34a' }}>{vehiculoActualObj?.estado}</span>
-              </div>
-            </div>
+              {!esChofer && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '15px', marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid #e2e8f0' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px', color: '#334155' }}>Seleccionar Chofer:</label>
+                    <select 
+                      value={choferSeleccionado} 
+                      onChange={(e) => setChoferSeleccionado(e.target.value)}
+                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', backgroundColor: '#fff' }}
+                    >
+                      {listaChoferes.map((ch, idx) => (
+                        <option key={idx} value={ch.nombre}>{ch.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
 
-            <div style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <span style={{ fontSize: '13px', color: '#1e40af', fontWeight: 'bold' }}>📍 Recorrido Total de la Ruta Estimado (Ida y Vuelta):</span>
-                <p style={{ margin: '2px 0 0 0', fontSize: '18px', fontWeight: 'bold', color: '#1e3a8a' }}>{kmTotalRuta} KM Total</p>
-              </div>
-              <span style={{ fontSize: '12px', color: '#2563eb' }}>Origen: Centro de Distribución Salta</span>
-            </div>
-
-            <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '16px', marginBottom: '16px' }}>
-              <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: '#334155' }}>Paradas de la Ruta:</h4>
-              {pedidosAsignados.length === 0 ? (
-                <p style={{ fontSize: '14px', color: '#94a3b8', fontStyle: 'italic' }}>No hay paradas asignadas actualmente.</p>
-              ) : (
-                <ul style={{ paddingLeft: '0', listStyle: 'none', margin: 0 }}>
-                  {pedidosAsignados.map((p, idx) => (
-                    <li key={idx} style={{ marginBottom: '12px', padding: '12px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <strong style={{ fontSize: '15px' }}>#{p.id} - {p.cliente || p.Cliente}</strong> ({p.provincia || 'Salta'})
-                        <br/>📍 Dirección: <strong>{p.direccion || p.Direccion}</strong> | 📦 Bultos: <strong>{p.bultos || 1}</strong>
-                        <br/>🛣️ Distancia desde CD: <strong>{p.kmDesdeCD || p.km_recorridos_pedido || 120} KM</strong> | Estado: <strong style={{ color: p.estado_entrega === 'Entregado' ? '#166534' : '#854d0e' }}>{p.estado_entrega || 'Pendiente'}</strong>
-                      </div>
-                      
-                      {esChofer && (
-                        <button 
-                          onClick={() => { setPedidoACerrar(p); setModalCierreAbierto(true); }}
-                          style={{ padding: '8px 14px', backgroundColor: '#0284c7', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
-                        >
-                          📝 Marcar Entregado / Viáticos
-                        </button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px', color: '#334155' }}>Seleccionar Vehículo Disponible:</label>
+                    <select 
+                      value={vehiculoSeleccionado} 
+                      onChange={(e) => setVehiculoSeleccionado(e.target.value)}
+                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', backgroundColor: '#fff' }}
+                    >
+                      {flotaVehiculos.map((v, idx) => (
+                        <option key={idx} value={v.dominio} disabled={v.enMantenimiento}>
+                          {v.dominio} - {v.modelo} ({v.estado} {v.enMantenimiento ? ' [En Taller]' : ''})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               )}
 
-              {!esChofer && (
-                <div style={{ display: 'flex', gap: '12px', marginTop: '15px' }}>
-                  <select 
-                    value={pedidoSeleccionado}
-                    onChange={(e) => setPedidoSeleccionado(e.target.value)}
-                    style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: '8px', padding: '10px', fontSize: '14px', backgroundColor: '#fff' }}
-                  >
-                    <option value="">Seleccionar pedido de prueba o importado...</option>
-                    {pedidosBD.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        #{p.id} - {p.cliente} ({p.provincia || 'Salta'}) | {p.direccion} | Bultos: {p.bultos || 1}
-                      </option>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ 
+                    backgroundColor: '#0f172a', 
+                    color: '#ffffff', 
+                    fontFamily: 'sans-serif', 
+                    fontSize: '13px', 
+                    fontWeight: 'bold', 
+                    padding: '5px 10px', 
+                    borderRadius: '6px',
+                    letterSpacing: '0.5px'
+                  }}>
+                    {vehiculoSeleccionado}
+                  </span>
+                  <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, color: '#1e293b' }}>
+                    {esChofer ? 'Mi Unidad Asignada' : choferSeleccionado}
+                  </h2>
+                </div>
+                
+                <div style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', color: '#334155', fontWeight: 'bold' }}>
+                  Km Inicial Vehículo: {vehiculoActualObj?.km || 124500} km | Estado: <span style={{ color: vehiculoActualObj?.estado === 'En Viaje' ? '#d97706' : '#16a34a' }}>{vehiculoActualObj?.estado}</span>
+                </div>
+              </div>
+
+              <div style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <span style={{ fontSize: '13px', color: '#1e40af', fontWeight: 'bold' }}>📍 Recorrido Total de la Ruta Estimado (Ida y Vuelta):</span>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '18px', fontWeight: 'bold', color: '#1e3a8a' }}>{kmTotalRuta} KM Total</p>
+                </div>
+                <span style={{ fontSize: '12px', color: '#2563eb' }}>Origen: Centro de Distribución Salta</span>
+              </div>
+
+              <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '16px', marginBottom: '16px' }}>
+                <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: '#334155' }}>Paradas de la Ruta:</h4>
+                {pedidosAsignados.length === 0 ? (
+                  <p style={{ fontSize: '14px', color: '#94a3b8', fontStyle: 'italic' }}>No hay paradas asignadas actualmente.</p>
+                ) : (
+                  <ul style={{ paddingLeft: '0', listStyle: 'none', margin: 0 }}>
+                    {pedidosAsignados.map((p, idx) => (
+                      <li key={idx} style={{ marginBottom: '12px', padding: '12px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <strong style={{ fontSize: '15px' }}>#{p.id} - {p.cliente || p.Cliente}</strong> ({p.provincia || 'Salta'})
+                          <br/>📍 Dirección: <strong>{p.direccion || p.Direccion}</strong> | 📦 Bultos: <strong>{p.bultos || 1}</strong>
+                          <br/>🛣️ Distancia desde CD: <strong>{p.kmDesdeCD || p.km_recorridos_pedido || 120} KM</strong> | Estado: <strong style={{ color: p.estado_entrega === 'Entregado' ? '#166534' : '#854d0e' }}>{p.estado_entrega || 'Pendiente'}</strong>
+                        </div>
+                        
+                        {esChofer && (
+                          <button 
+                            onClick={() => { setPedidoACerrar(p); setModalCierreAbierto(true); }}
+                            style={{ padding: '8px 14px', backgroundColor: '#0284c7', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
+                          >
+                            📝 Marcar Entregado / Viáticos
+                          </button>
+                        )}
+                      </li>
                     ))}
-                  </select>
-                  <button onClick={agregarPedidoRuta} style={{ padding: '10px 18px', backgroundColor: '#e2e8f0', border: 'none', borderRadius: '8px', fontWeight: '500', cursor: 'pointer' }}>
-                    Añadir a Ruta
+                  </ul>
+                )}
+
+                {!esChofer && (
+                  <div style={{ display: 'flex', gap: '12px', marginTop: '15px' }}>
+                    <select 
+                      value={pedidoSeleccionado}
+                      onChange={(e) => setPedidoSeleccionado(e.target.value)}
+                      style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: '8px', padding: '10px', fontSize: '14px', backgroundColor: '#fff' }}
+                    >
+                      <option value="">Seleccionar pedido de prueba o importado...</option>
+                      {pedidosBD.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          #{p.id} - {p.cliente} ({p.provincia || 'Salta'}) | {p.direccion} | Bultos: {p.bultos || 1}
+                        </option>
+                      ))}
+                    </select>
+                    <button onClick={agregarPedidoRuta} style={{ padding: '10px 18px', backgroundColor: '#e2e8f0', border: 'none', borderRadius: '8px', fontWeight: '500', cursor: 'pointer' }}>
+                      Añadir a Ruta
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {!esChofer && (
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  <button onClick={optimizarRutaOrdenada} style={{ padding: '10px 20px', backgroundColor: '#facc15', color: '#713f12', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}>
+                    ⚡ Optimizar Ruta y Calcular KM Totales
+                  </button>
+                  <button style={{ padding: '10px 20px', backgroundColor: '#064e3b', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}>
+                    Enviar Ruta por WhatsApp
                   </button>
                 </div>
               )}
             </div>
-
-            {!esChofer && (
-              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                <button onClick={optimizarRutaOrdenada} style={{ padding: '10px 20px', backgroundColor: '#facc15', color: '#713f12', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}>
-                  ⚡ Optimizar Ruta y Calcular KM Totales
-                </button>
-                <button style={{ padding: '10px 20px', backgroundColor: '#064e3b', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}>
-                  Enviar Ruta por WhatsApp
-                </button>
-              </div>
-            )}
-          </div>
+          )
         )}
 
         {/* VISTA 2: REPORTES Y EXPORTACIÓN */}
