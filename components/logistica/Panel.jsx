@@ -50,6 +50,7 @@ export default function Panel({ email }) {
   const [importeCombustible, setImporteCombustible] = useState('');
   const [kmLecturaCombustible, setKmLecturaCombustible] = useState('');
   const [filtroPatenteCombustible, setFiltroPatenteCombustible] = useState('');
+  const [idCargaEditando, setIdCargaEditando] = useState(null); // Control para editar registro
 
   // ESTADOS PESTAÑA RÁPIDA DE ACTUALIZAR KM / HORAS
   const [patenteRapidaKm, setPatenteRapidaKm] = useState('');
@@ -266,7 +267,7 @@ export default function Panel({ email }) {
     }
   };
 
-  // REGISTRAR CARGA DE COMBUSTIBLE
+  // REGISTRAR / ACTUALIZAR CARGA DE COMBUSTIBLE
   const guardarCargaCombustible = (e) => {
     e.preventDefault();
     if (!patenteCombustible || !litrosCombustible || !importeCombustible) {
@@ -276,22 +277,52 @@ export default function Panel({ email }) {
 
     const veh = flotaVehiculos.find(v => v.dominio === patenteCombustible) || flotaMantenimientoBD.find(v => v.patente === patenteCombustible);
 
-    const nuevaCarga = {
-      id: Date.now(),
-      patente: patenteCombustible,
-      modelo: veh?.modelo || 'Unidad Flota',
-      litros: Number(litrosCombustible),
-      importe: Number(importeCombustible),
-      kmLectura: Number(kmLecturaCombustible) || Number(veh?.km || veh?.horas || 0),
-      fecha: new Date().toISOString().slice(0, 10)
-    };
+    if (idCargaEditando) {
+      // Editar registro existente
+      setCargasCombustibleBD(cargasCombustibleBD.map(c => c.id === idCargaEditando ? {
+        ...c,
+        patente: patenteCombustible,
+        modelo: veh?.modelo || c.modelo || 'Unidad Flota',
+        litros: Number(litrosCombustible),
+        importe: Number(importeCombustible),
+        kmLectura: Number(kmLecturaCombustible) || c.kmLectura
+      } : c));
+      setIdCargaEditando(null);
+      alert('¡Registro de combustible modificado con éxito!');
+    } else {
+      // Crear nuevo registro
+      const nuevaCarga = {
+        id: Date.now(),
+        patente: patenteCombustible,
+        modelo: veh?.modelo || 'Unidad Flota',
+        litros: Number(litrosCombustible),
+        importe: Number(importeCombustible),
+        kmLectura: Number(kmLecturaCombustible) || Number(veh?.km || veh?.horas || 0),
+        fecha: new Date().toISOString().slice(0, 10)
+      };
+      setCargasCombustibleBD([nuevaCarga, ...cargasCombustibleBD]);
+      alert(`¡Carga de combustible de ${nuevaCarga.litros} Lts ($${nuevaCarga.importe.toLocaleString()}) registrada con éxito!`);
+    }
 
-    setCargasCombustibleBD([nuevaCarga, ...cargasCombustibleBD]);
     setPatenteCombustible('');
     setLitrosCombustible('');
     setImporteCombustible('');
     setKmLecturaCombustible('');
-    alert(`¡Carga de combustible de ${nuevaCarga.litros} Lts ($${nuevaCarga.importe.toLocaleString()}) registrada con éxito!`);
+  };
+
+  const editarCargaCombustible = (carga) => {
+    setIdCargaEditando(carga.id);
+    setPatenteCombustible(carga.patente);
+    setLitrosCombustible(carga.litros);
+    setImporteCombustible(carga.importe);
+    setKmLecturaCombustible(carga.kmLectura);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const eliminarCargaCombustible = (id) => {
+    if (confirm('¿Estás seguro de que deseas eliminar este registro de combustible?')) {
+      setCargasCombustibleBD(cargasCombustibleBD.filter(c => c.id !== id));
+    }
   };
 
   // Exportar cargas de combustible a Excel
@@ -778,7 +809,6 @@ export default function Panel({ email }) {
 
   const vehiculosOrdenadosCostos = [...flotaMantenimientoBD].sort((a, b) => Number(b.costo_mantenimiento || 0) - Number(a.costo_mantenimiento || 0));
   
-  // Agrupar consumos de combustible para el widget del Dashboard
   const resumenCombustibleAgrupado = Object.values(cargasCombustibleBD.reduce((acc, curr) => {
     if (!acc[curr.patente]) {
       acc[curr.patente] = { patente: curr.patente, modelo: curr.modelo, totalLitros: 0, totalImporte: 0 };
@@ -920,7 +950,6 @@ export default function Panel({ email }) {
                 🛠️ Mantenimiento
               </button>
 
-              {/* NUEVA PESTAÑA COMBUSTIBLE */}
               <button 
                 onClick={() => setPestanaActiva('combustible')}
                 style={{ backgroundColor: pestanaActiva === 'combustible' ? '#1e293b' : '#15803d', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
@@ -949,7 +978,6 @@ export default function Panel({ email }) {
         {!esChofer && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px', marginBottom: '24px' }}>
             
-            {/* Widget 1: Mayores Costos */}
             <div style={{ backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
               <h4 style={{ margin: '0 0 10px 0', fontSize: '15px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 💰 Top Vehículos con Mayores Costos
@@ -967,7 +995,6 @@ export default function Panel({ email }) {
               )}
             </div>
 
-            {/* Widget 2: Alertas de Vencimiento de Carnets */}
             <div style={{ backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
               <h4 style={{ margin: '0 0 10px 0', fontSize: '15px', color: '#991b1b', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 ⚠️ Alertas de Vencimiento de Carnets ({choferesEnAlerta.length})
@@ -985,7 +1012,6 @@ export default function Panel({ email }) {
               )}
             </div>
 
-            {/* Widget 3 (NUEVO AL LADO DE LOS OTROS DOS): Top Consumo de Combustible */}
             <div style={{ backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
               <h4 style={{ margin: '0 0 10px 0', fontSize: '15px', color: '#15803d', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 ⛽ Top Consumo de Combustible
@@ -1661,7 +1687,7 @@ export default function Panel({ email }) {
           </div>
         )}
 
-        {/* NUEVA PESTAÑA 5: COMBUSTIBLE Y RENDIMIENTO */}
+        {/* PESTAÑA 5: COMBUSTIBLE Y RENDIMIENTO (CON BOTONES MODIFICAR / BORRAR) */}
         {pestanaActiva === 'combustible' && !esChofer && (
           <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
             <h3 style={{ margin: '0 0 10px 0', fontSize: '20px', fontWeight: 'bold', color: '#0f172a' }}>
@@ -1671,9 +1697,11 @@ export default function Panel({ email }) {
               Carga los consumos de combustible por vehículo/unidad para analizar el gasto e identificaciones de alto consumo.
             </p>
 
-            {/* FORMULARIO DE REGISTRO */}
-            <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', padding: '20px', borderRadius: '10px', marginBottom: '25px' }}>
-              <h4 style={{ margin: '0 0 15px 0', color: '#15803d', fontSize: '16px' }}>📝 Cargar Nueva Carga de Combustible</h4>
+            {/* FORMULARIO DE REGISTRO / EDICIÓN */}
+            <div style={{ backgroundColor: idCargaEditando ? '#fef3c7' : '#f0fdf4', border: `1px solid ${idCargaEditando ? '#fde68a' : '#bbf7d0'}`, padding: '20px', borderRadius: '10px', marginBottom: '25px' }}>
+              <h4 style={{ margin: '0 0 15px 0', color: idCargaEditando ? '#92400e' : '#15803d', fontSize: '16px' }}>
+                {idCargaEditando ? '✏️ Modificar Carga de Combustible Seleccionada' : '📝 Cargar Nueva Carga de Combustible'}
+              </h4>
               <form onSubmit={guardarCargaCombustible} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#166534' }}>Patente / Unidad:</label>
@@ -1683,7 +1711,7 @@ export default function Panel({ email }) {
                       const pat = e.target.value;
                       setPatenteCombustible(pat);
                       const veh = flotaVehiculos.find(v => v.dominio === pat) || flotaMantenimientoBD.find(v => v.patente === pat);
-                      if (veh) setKmLecturaCombustible(veh.km || veh.horas || veh.km_actual || '');
+                      if (veh && !idCargaEditando) setKmLecturaCombustible(veh.km || veh.horas || veh.km_actual || '');
                     }}
                     style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#fff', fontWeight: 'bold' }}
                     required
@@ -1730,10 +1758,19 @@ export default function Panel({ email }) {
                   />
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                  <button type="submit" style={{ width: '100%', padding: '10px', backgroundColor: '#15803d', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
-                    Registrar Carga
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
+                  <button type="submit" style={{ flex: 1, padding: '10px', backgroundColor: idCargaEditando ? '#d97706' : '#15803d', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
+                    {idCargaEditando ? 'Guardar Cambios' : 'Registrar Carga'}
                   </button>
+                  {idCargaEditando && (
+                    <button 
+                      type="button" 
+                      onClick={() => { setIdCargaEditando(null); setPatenteCombustible(''); setLitrosCombustible(''); setImporteCombustible(''); setKmLecturaCombustible(''); }}
+                      style={{ padding: '10px 12px', backgroundColor: '#64748b', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
+                    >
+                      Cancelar
+                    </button>
+                  )}
                 </div>
               </form>
             </div>
@@ -1762,7 +1799,7 @@ export default function Panel({ email }) {
               </button>
             </div>
 
-            {/* TABLA DE CARGAS */}
+            {/* TABLA DE CARGAS CON BOTONES MODIFICAR Y BORRAR */}
             <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
                 <thead>
@@ -1774,12 +1811,13 @@ export default function Panel({ email }) {
                     <th style={{ padding: '10px' }}>Importe ($)</th>
                     <th style={{ padding: '10px' }}>Lectura Odómetro / Horas</th>
                     <th style={{ padding: '10px' }}>Costo/Ltr Estimado</th>
+                    <th style={{ padding: '10px', textAlign: 'center' }}>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {cargasCombustibleFiltradas.length === 0 ? (
                     <tr>
-                      <td colSpan="7" style={{ padding: '15px', textAlign: 'center', color: '#64748b' }}>
+                      <td colSpan="8" style={{ padding: '15px', textAlign: 'center', color: '#64748b' }}>
                         No hay cargas registradas para el filtro seleccionado.
                       </td>
                     </tr>
@@ -1793,6 +1831,22 @@ export default function Panel({ email }) {
                         <td style={{ padding: '10px', fontWeight: 'bold' }}>${c.importe.toLocaleString()}</td>
                         <td style={{ padding: '10px' }}>{c.kmLectura}</td>
                         <td style={{ padding: '10px', color: '#0369a1', fontWeight: 'bold' }}>${(c.importe / (c.litros || 1)).toFixed(2)}/L</td>
+                        <td style={{ padding: '10px', textAlign: 'center', display: 'flex', justifyContent: 'center', gap: '6px' }}>
+                          <button 
+                            onClick={() => editarCargaCombustible(c)}
+                            title="Modificar registro"
+                            style={{ backgroundColor: '#fef3c7', color: '#92400e', border: 'none', borderRadius: '4px', padding: '5px 8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
+                          >
+                            ✏️
+                          </button>
+                          <button 
+                            onClick={() => eliminarCargaCombustible(c.id)}
+                            title="Borrar registro"
+                            style={{ backgroundColor: '#fee2e2', color: '#b91c1c', border: 'none', borderRadius: '4px', padding: '5px 8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
+                          >
+                            🗑️
+                          </button>
+                        </td>
                       </tr>
                     ))
                   )}
