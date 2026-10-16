@@ -6,13 +6,20 @@ export async function POST(request) {
     const body = await request.json();
     const { pedidoId, estadoEntrega, efectivo, transferencia, cheque, gastos, kmRecorridos } = body;
 
+    // Forzar que el ID sea un número entero para evitar problemas de tipos en PostgreSQL
+    const idPedidoNum = parseInt(pedidoId, 10);
+
+    if (isNaN(idPedidoNum)) {
+      return NextResponse.json({ success: false, error: 'El ID del pedido es inválido o no es numérico.' }, { status: 400 });
+    }
+
     const sql = neon(process.env.DATABASE_URL);
 
     // 1. Actualizar el estado del pedido principal
     await sql`
       UPDATE pedidos 
       SET 
-        estado_entrega = ${estadoEntrega},
+        estado_entrega = ${estadoEntrega || 'Entregado'},
         monto_total_cobrado = ${parseFloat(efectivo || 0) + parseFloat(transferencia || 0) + parseFloat(cheque || 0)},
         gasto_total = ${
           (parseFloat(gastos?.desayuno) || 0) + 
@@ -24,13 +31,13 @@ export async function POST(request) {
         },
         km_recorridos_pedido = ${parseFloat(kmRecorridos || 0)},
         fecha_cierre = CURRENT_TIMESTAMP
-      WHERE id = ${pedidoId}
+      WHERE id = ${idPedidoNum}
     `;
 
     // 2. Registrar en la tabla normalizada 'registros_entrega'
     await sql`
       INSERT INTO registros_entrega (pedido_id, estado, km_recorrido, fecha_registro)
-      VALUES (${pedidoId}, ${estadoEntrega}, ${parseFloat(kmRecorridos || 0)}, CURRENT_TIMESTAMP)
+      VALUES (${idPedidoNum}, ${estadoEntrega || 'Entregado'}, ${parseFloat(kmRecorridos || 0)}, CURRENT_TIMESTAMP)
       ON CONFLICT DO NOTHING;
     `;
 
@@ -42,7 +49,7 @@ export async function POST(request) {
     if (totalEfectivo > 0 || totalTransferencia > 0 || totalCheque > 0) {
       await sql`
         INSERT INTO cobros (pedido_id, monto_efectivo, monto_transferencia, monto_cheque, fecha_cobro)
-        VALUES (${pedidoId}, ${totalEfectivo}, ${totalTransferencia}, ${totalCheque}, CURRENT_TIMESTAMP)
+        VALUES (${idPedidoNum}, ${totalEfectivo}, ${totalTransferencia}, ${totalCheque}, CURRENT_TIMESTAMP)
       `;
     }
 
@@ -58,13 +65,13 @@ export async function POST(request) {
     if (sumaViaticos > 0) {
       await sql`
         INSERT INTO viaticos (pedido_id, desayuno, almuerzo, merienda, cena, hotel, otros, total_viaticos, fecha)
-        VALUES (${pedidoId}, ${desayuno}, ${almuerzo}, ${merienda}, ${cena}, ${hotel}, ${otros}, ${sumaViaticos}, CURRENT_TIMESTAMP)
+        VALUES (${idPedidoNum}, ${desayuno}, ${almuerzo}, ${merienda}, ${cena}, ${hotel}, ${otros}, ${sumaViaticos}, CURRENT_TIMESTAMP)
       `;
     }
 
     return NextResponse.json({ 
       success: true, 
-      message: `Cierre del pedido #${pedidoId} registrado con éxito en las tablas correspondientes.` 
+      message: `Cierre del pedido #${idPedidoNum} registrado con éxito en las tablas correspondientes.` 
     });
 
   } catch (error) {
