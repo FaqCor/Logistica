@@ -26,6 +26,9 @@ export default function Panel({ email }) {
   const [pedidosAsignados, setPedidosAsignados] = useState([]);
   const [pedidoSeleccionado, setPedidoSeleccionado] = useState('');
 
+  // Estado local para ocultar entregados en la vista de rutas sin borrarlos de la BD ni del reporte
+  const [pedidosArchivadosRuta, setPedidosArchivadosRuta] = useState([]);
+
   // --- PASO 1: NUEVOS ESTADOS PARA GESTIÓN DE FLOTA Y PERSONAL (CHOFERES Y AYUDANTES) ---
   const [personalEmpresa, setPersonalEmpresa] = useState([
     { id: 1, nombre: 'Juan Pérez', rol: 'Chofer', email: 'chofer@demo.com', telefono: '3874556677' },
@@ -182,6 +185,8 @@ export default function Panel({ email }) {
       if (res.ok) {
         alert(result.message);
         setModalAbierto(false);
+        // Limpiar los archivados locales de la vista operativa para recibir los nuevos del Excel
+        setPedidosArchivadosRuta([]);
         cargarPedidos();
       } else {
         alert('Error: ' + result.error);
@@ -281,7 +286,8 @@ export default function Panel({ email }) {
       monto_cheque: ch,
       monto_total_cobrado: totalCobrado,
       km_recorridos_pedido: kmPedido,
-      gasto_total: totalGastosPedido
+      gasto_total: totalGastosPedido,
+      fecha_cierre: new Date().toISOString()
     } : p);
 
     setPedidosAsignados(actualizarLista(pedidosAsignados.length > 0 ? pedidosAsignados : pedidosEjemplo));
@@ -311,6 +317,7 @@ export default function Panel({ email }) {
   const exportarReporteExcel = () => {
     const listaReporte = pedidosBD.length > 0 ? pedidosBD : (pedidosAsignados.length > 0 ? pedidosAsignados : pedidosEjemplo);
     const datosExportar = listaReporte.map(p => ({
+      'Fecha': p.fecha_cierre ? new Date(p.fecha_cierre).toLocaleDateString() : (p.fecha_programada ? new Date(p.fecha_programada).toLocaleDateString() : '-'),
       'N° Pedido': p.id,
       'Cliente': p.cliente || p.Cliente,
       'Provincia': p.provincia || 'Salta',
@@ -333,9 +340,7 @@ export default function Panel({ email }) {
   };
 
   const vehiculoActualObj = flotaVehiculos.find(v => v.dominio === vehiculoSeleccionado);
-  // Forzar el uso exclusivo de los pedidos provenientes de Neon (pedidosBD)
-  // Si pedidosBD está vacío, muestra un aviso en lugar de inventar datos estáticos
-  const listaMostrada = pedidosBD.length > 0 ? pedidosBD : pedidosAsignados;
+  const listaMostrada = (pedidosBD.length > 0 ? pedidosBD : pedidosAsignados).filter(p => !pedidosArchivadosRuta.includes(p.id));
   const listaReportes = pedidosBD.length > 0 ? pedidosBD : [];
 
   return (
@@ -574,8 +579,24 @@ export default function Panel({ email }) {
                   </div>
                 </div>
                 
-                <div style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', color: '#334155', fontWeight: 'bold' }}>
-                  Km Inicial: {vehiculoActualObj?.km || 124500} km | Estado: <span style={{ color: vehiculoActualObj?.estado === 'En Viaje' ? '#d97706' : '#16a34a' }}>{vehiculoActualObj?.estado}</span>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  {!esChofer && (
+                    <button 
+                      onClick={() => {
+                        const idsEntregados = (pedidosBD.length > 0 ? pedidosBD : pedidosAsignados)
+                          .filter(p => p.estado_entrega === 'Entregado')
+                          .map(p => p.id);
+                        setPedidosArchivadosRuta([...new Set([...pedidosArchivadosRuta, ...idsEntregados])]);
+                      }}
+                      style={{ padding: '8px 14px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+                    >
+                      🗑️ Archivar Entregados (Limpiar Ruta)
+                    </button>
+                  )}
+
+                  <div style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', color: '#334155', fontWeight: 'bold' }}>
+                    Km Inicial: {vehiculoActualObj?.km || 124500} km | Estado: <span style={{ color: vehiculoActualObj?.estado === 'En Viaje' ? '#d97706' : '#16a34a' }}>{vehiculoActualObj?.estado}</span>
+                  </div>
                 </div>
               </div>
 
@@ -684,6 +705,7 @@ export default function Panel({ email }) {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
                 <thead>
                   <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#334155' }}>
+                    <th style={{ padding: '10px' }}>Fecha</th>
                     <th style={{ padding: '10px' }}>N° Pedido</th>
                     <th style={{ padding: '10px' }}>Cliente</th>
                     <th style={{ padding: '10px' }}>Provincia</th>
@@ -696,6 +718,9 @@ export default function Panel({ email }) {
                 <tbody>
                   {listaReportes.map((p, idx) => (
                     <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '10px', color: '#64748b' }}>
+                        {p.fecha_cierre ? new Date(p.fecha_cierre).toLocaleDateString() : (p.fecha_programada ? new Date(p.fecha_programada).toLocaleDateString() : '-')}
+                      </td>
                       <td style={{ padding: '10px', fontWeight: 'bold' }}>#{p.id}</td>
                       <td style={{ padding: '10px' }}>{p.cliente || p.Cliente}</td>
                       <td style={{ padding: '10px' }}>{p.provincia || 'Salta'}</td>
