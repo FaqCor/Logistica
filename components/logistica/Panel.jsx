@@ -39,6 +39,18 @@ export default function Panel({ email }) {
   const [nuevoCostoMto, setNuevoCostoMto] = useState('');
   const [filtroPatenteMto, setFiltroPatenteMto] = useState('');
 
+  // --- ESTADOS PARA COMBUSTIBLE Y RENDIMIENTO ---
+  const [cargasCombustibleBD, setCargasCombustibleBD] = useState([
+    { id: 1, patente: 'NEB732', modelo: 'IVECO Daily', litros: 65, importe: 82000, kmLectura: 124500, fecha: '2026-05-10' },
+    { id: 2, patente: 'AF997GV', modelo: 'Mercedes Benz Sprinter', litros: 50, importe: 63000, kmLectura: 98200, fecha: '2026-05-12' },
+    { id: 3, patente: 'AD172YF', modelo: 'Mercedes Benz Atego', litros: 120, importe: 151000, kmLectura: 210400, fecha: '2026-05-14' }
+  ]);
+  const [patenteCombustible, setPatenteCombustible] = useState('');
+  const [litrosCombustible, setLitrosCombustible] = useState('');
+  const [importeCombustible, setImporteCombustible] = useState('');
+  const [kmLecturaCombustible, setKmLecturaCombustible] = useState('');
+  const [filtroPatenteCombustible, setFiltroPatenteCombustible] = useState('');
+
   // ESTADOS PESTAÑA RÁPIDA DE ACTUALIZAR KM / HORAS
   const [patenteRapidaKm, setPatenteRapidaKm] = useState('');
   const [valorRapidoKm, setValorRapidoKm] = useState('');
@@ -65,11 +77,11 @@ export default function Panel({ email }) {
   const [nuevoEmailPersonal, setNuevoEmailPersonal] = useState('');
   const [nuevoTelPersonal, setNuevoTelPersonal] = useState('');
 
-  // Campos de registro de vehículo actualizados
+  // Campos de registro de vehículo
   const [nuevoDominioVehiculo, setNuevoDominioVehiculo] = useState('');
   const [nuevoModeloVehiculo, setNuevoModeloVehiculo] = useState('');
   const [nuevoKmVehiculo, setNuevoKmVehiculo] = useState('');
-  const [tipoMedicionVehiculo, setTipoMedicionVehiculo] = useState('Kilómetros'); // 'Kilómetros' o 'Horas'
+  const [tipoMedicionVehiculo, setTipoMedicionVehiculo] = useState('Kilómetros');
   const [nuevasHorasVehiculo, setNuevasHorasVehiculo] = useState('');
 
   // Flota y choferes
@@ -252,6 +264,56 @@ export default function Panel({ email }) {
     } catch (error) {
       alert('Error al conectar con el servidor.');
     }
+  };
+
+  // REGISTRAR CARGA DE COMBUSTIBLE
+  const guardarCargaCombustible = (e) => {
+    e.preventDefault();
+    if (!patenteCombustible || !litrosCombustible || !importeCombustible) {
+      alert('Por favor, completa la patente, litros y el importe total.');
+      return;
+    }
+
+    const veh = flotaVehiculos.find(v => v.dominio === patenteCombustible) || flotaMantenimientoBD.find(v => v.patente === patenteCombustible);
+
+    const nuevaCarga = {
+      id: Date.now(),
+      patente: patenteCombustible,
+      modelo: veh?.modelo || 'Unidad Flota',
+      litros: Number(litrosCombustible),
+      importe: Number(importeCombustible),
+      kmLectura: Number(kmLecturaCombustible) || Number(veh?.km || veh?.horas || 0),
+      fecha: new Date().toISOString().slice(0, 10)
+    };
+
+    setCargasCombustibleBD([nuevaCarga, ...cargasCombustibleBD]);
+    setPatenteCombustible('');
+    setLitrosCombustible('');
+    setImporteCombustible('');
+    setKmLecturaCombustible('');
+    alert(`¡Carga de combustible de ${nuevaCarga.litros} Lts ($${nuevaCarga.importe.toLocaleString()}) registrada con éxito!`);
+  };
+
+  // Exportar cargas de combustible a Excel
+  const exportarCombustibleExcel = () => {
+    const listaExportar = filtroPatenteCombustible
+      ? cargasCombustibleBD.filter(c => c.patente === filtroPatenteCombustible)
+      : cargasCombustibleBD;
+
+    const datosExportar = listaExportar.map(c => ({
+      'Fecha': c.fecha,
+      'Patente': c.patente,
+      'Modelo': c.modelo,
+      'Litros Cargados': c.litros,
+      'Importe Total ($)': c.importe,
+      'Lectura Odómetro / Horómetro': c.kmLectura,
+      'Costo / Litro ($)': (c.importe / (c.litros || 1)).toFixed(2)
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(datosExportar);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Consumo_Combustible');
+    XLSX.writeFile(workbook, `Reporte_Combustible_Flota_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   // Exportar mantenimiento a Excel
@@ -716,6 +778,16 @@ export default function Panel({ email }) {
 
   const vehiculosOrdenadosCostos = [...flotaMantenimientoBD].sort((a, b) => Number(b.costo_mantenimiento || 0) - Number(a.costo_mantenimiento || 0));
   
+  // Agrupar consumos de combustible para el widget del Dashboard
+  const resumenCombustibleAgrupado = Object.values(cargasCombustibleBD.reduce((acc, curr) => {
+    if (!acc[curr.patente]) {
+      acc[curr.patente] = { patente: curr.patente, modelo: curr.modelo, totalLitros: 0, totalImporte: 0 };
+    }
+    acc[curr.patente].totalLitros += curr.litros;
+    acc[curr.patente].totalImporte += curr.importe;
+    return acc;
+  }, {})).sort((a, b) => b.totalImporte - a.totalImporte);
+
   const hoyFecha = new Date();
   const choferesEnAlerta = choferesCarnetsBD.filter(c => {
     const vencimientos = [c.vencimiento_carnet_conducir, c.vencimiento_cargas_peligrosas, c.vencimiento_cargas_generales, c.vencimiento_psicofisico];
@@ -729,6 +801,10 @@ export default function Panel({ email }) {
   const flotaMantenimientoFiltrada = filtroPatenteMto 
     ? flotaMantenimientoBD.filter(v => v.patente === filtroPatenteMto)
     : flotaMantenimientoBD;
+
+  const cargasCombustibleFiltradas = filtroPatenteCombustible
+    ? cargasCombustibleBD.filter(c => c.patente === filtroPatenteCombustible)
+    : cargasCombustibleBD;
 
   return (
     <div style={{ backgroundColor: '#f1f5f9', minHeight: '100vh', fontFamily: 'sans-serif' }}>
@@ -844,6 +920,14 @@ export default function Panel({ email }) {
                 🛠️ Mantenimiento
               </button>
 
+              {/* NUEVA PESTAÑA COMBUSTIBLE */}
+              <button 
+                onClick={() => setPestanaActiva('combustible')}
+                style={{ backgroundColor: pestanaActiva === 'combustible' ? '#1e293b' : '#15803d', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
+              >
+                ⛽ Combustible
+              </button>
+
               <button 
                 onClick={() => { setPestanaActiva('choferesCarnets'); cargarDatosBD(); }}
                 style={{ backgroundColor: pestanaActiva === 'choferesCarnets' ? '#1e293b' : '#0369a1', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
@@ -861,10 +945,11 @@ export default function Panel({ email }) {
           )}
         </div>
 
-        {/* ESTILO DASHBOARD SUPERIOR (RESUMEN EJECUTIVO) */}
+        {/* ESTILO DASHBOARD SUPERIOR (RESUMEN EJECUTIVO - 3 WIDGETS) */}
         {!esChofer && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '15px', marginBottom: '24px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px', marginBottom: '24px' }}>
             
+            {/* Widget 1: Mayores Costos */}
             <div style={{ backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
               <h4 style={{ margin: '0 0 10px 0', fontSize: '15px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 💰 Top Vehículos con Mayores Costos
@@ -882,6 +967,7 @@ export default function Panel({ email }) {
               )}
             </div>
 
+            {/* Widget 2: Alertas de Vencimiento de Carnets */}
             <div style={{ backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
               <h4 style={{ margin: '0 0 10px 0', fontSize: '15px', color: '#991b1b', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 ⚠️ Alertas de Vencimiento de Carnets ({choferesEnAlerta.length})
@@ -893,6 +979,24 @@ export default function Panel({ email }) {
                   {choferesEnAlerta.slice(0, 3).map((c, i) => (
                     <li key={i} style={{ marginBottom: '6px' }}>
                       <strong>{c.nombre_chofer}</strong> (DNI: {c.dni}) - Requiere renovación próxima.
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Widget 3 (NUEVO AL LADO DE LOS OTROS DOS): Top Consumo de Combustible */}
+            <div style={{ backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <h4 style={{ margin: '0 0 10px 0', fontSize: '15px', color: '#15803d', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                ⛽ Top Consumo de Combustible
+              </h4>
+              {resumenCombustibleAgrupado.length === 0 ? (
+                <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>Sin cargas registradas.</p>
+              ) : (
+                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px', color: '#334155' }}>
+                  {resumenCombustibleAgrupado.slice(0, 3).map((c, i) => (
+                    <li key={i} style={{ marginBottom: '6px' }}>
+                      <strong style={{ fontFamily: 'monospace' }}>{c.patente}</strong> ({c.modelo}): <span style={{ color: '#15803d', fontWeight: 'bold' }}>{c.totalLitros} Lts</span> (${c.totalImporte.toLocaleString()})
                     </li>
                   ))}
                 </ul>
@@ -1167,7 +1271,7 @@ export default function Panel({ email }) {
           </div>
         )}
 
-        {/* PESTAÑA 3: FLOTA Y PERSONAL (ACTUALIZADO CON HORAS DE TRABAJO / AUTOELEVADOR) */}
+        {/* PESTAÑA 3: FLOTA Y PERSONAL */}
         {pestanaActiva === 'flotaPersonal' && !esChofer && (
           <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
             <h3 style={{ margin: '0 0 20px 0', fontSize: '20px', fontWeight: 'bold', color: '#0f172a' }}>
@@ -1231,7 +1335,6 @@ export default function Panel({ email }) {
                 </form>
               </div>
 
-              {/* REGISTRAR VEHÍCULO / AUTOELEVADORES POR HORAS O KM */}
               <div style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                 <h4 style={{ margin: '0 0 15px 0', color: '#064e3b', fontSize: '16px' }}>🚛 Registrar Vehículo / Autoelevador</h4>
                 <form onSubmit={agregarVehiculo}>
@@ -1473,7 +1576,6 @@ export default function Panel({ email }) {
               </form>
             </div>
 
-            {/* SECCIÓN DE FILTROS Y DESCARGA EXCEL */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#334155' }}>Filtrar reporte por Patente:</label>
@@ -1559,7 +1661,149 @@ export default function Panel({ email }) {
           </div>
         )}
 
-        {/* PESTAÑA 5: CARNETS DE CHOFERES */}
+        {/* NUEVA PESTAÑA 5: COMBUSTIBLE Y RENDIMIENTO */}
+        {pestanaActiva === 'combustible' && !esChofer && (
+          <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '20px', fontWeight: 'bold', color: '#0f172a' }}>
+              ⛽ Registro y Control de Rendimiento de Combustible
+            </h3>
+            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px' }}>
+              Carga los consumos de combustible por vehículo/unidad para analizar el gasto e identificaciones de alto consumo.
+            </p>
+
+            {/* FORMULARIO DE REGISTRO */}
+            <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', padding: '20px', borderRadius: '10px', marginBottom: '25px' }}>
+              <h4 style={{ margin: '0 0 15px 0', color: '#15803d', fontSize: '16px' }}>📝 Cargar Nueva Carga de Combustible</h4>
+              <form onSubmit={guardarCargaCombustible} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#166534' }}>Patente / Unidad:</label>
+                  <select 
+                    value={patenteCombustible} 
+                    onChange={(e) => {
+                      const pat = e.target.value;
+                      setPatenteCombustible(pat);
+                      const veh = flotaVehiculos.find(v => v.dominio === pat) || flotaMantenimientoBD.find(v => v.patente === pat);
+                      if (veh) setKmLecturaCombustible(veh.km || veh.horas || veh.km_actual || '');
+                    }}
+                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#fff', fontWeight: 'bold' }}
+                    required
+                  >
+                    <option value="">-- Seleccionar Patente --</option>
+                    {listaTodasPatentes.map((pat, idx) => (
+                      <option key={idx} value={pat}>{pat}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#166534' }}>Litros Cargados:</label>
+                  <input 
+                    type="number" 
+                    placeholder="Ej: 60" 
+                    value={litrosCombustible} 
+                    onChange={(e) => setLitrosCombustible(e.target.value)} 
+                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                    required 
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#166534' }}>Importe Total ($):</label>
+                  <input 
+                    type="number" 
+                    placeholder="Ej: 75000" 
+                    value={importeCombustible} 
+                    onChange={(e) => setImporteCombustible(e.target.value)} 
+                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                    required 
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#166534' }}>Lectura Odómetro / Horas:</label>
+                  <input 
+                    type="number" 
+                    placeholder="124500" 
+                    value={kmLecturaCombustible} 
+                    onChange={(e) => setKmLecturaCombustible(e.target.value)} 
+                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
+                  />
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                  <button type="submit" style={{ width: '100%', padding: '10px', backgroundColor: '#15803d', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
+                    Registrar Carga
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* FILTRO Y EXPORTACIÓN */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#334155' }}>Filtrar por Patente:</label>
+                <select 
+                  value={filtroPatenteCombustible} 
+                  onChange={(e) => setFiltroPatenteCombustible(e.target.value)}
+                  style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#fff', fontSize: '13px', fontWeight: 'bold' }}
+                >
+                  <option value="">Todas las patentes</option>
+                  {listaTodasPatentes.map((pat, idx) => (
+                    <option key={idx} value={pat}>{pat}</option>
+                  ))}
+                </select>
+              </div>
+
+              <button 
+                onClick={exportarCombustibleExcel}
+                style={{ backgroundColor: '#15803d', color: 'white', border: 'none', padding: '9px 16px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}
+              >
+                📥 Exportar Cargas a Excel (.xlsx)
+              </button>
+            </div>
+
+            {/* TABLA DE CARGAS */}
+            <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#334155' }}>
+                    <th style={{ padding: '10px' }}>Fecha</th>
+                    <th style={{ padding: '10px' }}>Patente</th>
+                    <th style={{ padding: '10px' }}>Modelo</th>
+                    <th style={{ padding: '10px' }}>Litros</th>
+                    <th style={{ padding: '10px' }}>Importe ($)</th>
+                    <th style={{ padding: '10px' }}>Lectura Odómetro / Horas</th>
+                    <th style={{ padding: '10px' }}>Costo/Ltr Estimado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cargasCombustibleFiltradas.length === 0 ? (
+                    <tr>
+                      <td colSpan="7" style={{ padding: '15px', textAlign: 'center', color: '#64748b' }}>
+                        No hay cargas registradas para el filtro seleccionado.
+                      </td>
+                    </tr>
+                  ) : (
+                    cargasCombustibleFiltradas.map((c, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '10px', color: '#64748b' }}>{c.fecha}</td>
+                        <td style={{ padding: '10px', fontWeight: 'bold', fontFamily: 'monospace' }}>{c.patente}</td>
+                        <td style={{ padding: '10px' }}>{c.modelo}</td>
+                        <td style={{ padding: '10px', fontWeight: 'bold', color: '#15803d' }}>{c.litros} Lts</td>
+                        <td style={{ padding: '10px', fontWeight: 'bold' }}>${c.importe.toLocaleString()}</td>
+                        <td style={{ padding: '10px' }}>{c.kmLectura}</td>
+                        <td style={{ padding: '10px', color: '#0369a1', fontWeight: 'bold' }}>${(c.importe / (c.litros || 1)).toFixed(2)}/L</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+          </div>
+        )}
+
+        {/* PESTAÑA 6: CARNETS DE CHOFERES */}
         {pestanaActiva === 'choferesCarnets' && !esChofer && (
           <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
             <h3 style={{ margin: '0 0 10px 0', fontSize: '20px', fontWeight: 'bold', color: '#0f172a' }}>
@@ -1689,7 +1933,7 @@ export default function Panel({ email }) {
           </div>
         )}
 
-        {/* PESTAÑA 6: ACTUALIZAR KM / HORAS DE CUALQUIER TRANSPORTE */}
+        {/* PESTAÑA 7: ACTUALIZAR KM / HORAS DE CUALQUIER TRANSPORTE */}
         {pestanaActiva === 'actualizarKm' && !esChofer && (
           <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
             <h3 style={{ margin: '0 0 10px 0', fontSize: '20px', fontWeight: 'bold', color: '#0f172a' }}>
