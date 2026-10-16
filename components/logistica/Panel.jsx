@@ -28,7 +28,7 @@ export default function Panel({ email }) {
   // Estado local para ocultar entregados en la vista de rutas
   const [pedidosArchivadosRuta, setPedidosArchivadosRuta] = useState([]);
 
-  // --- ESTADOS PARA MANTENIMIENTO DE FLOTA Y ACTUALIZACIÓN RÁPIDA DE KM ---
+  // --- ESTADOS PARA MANTENIMIENTO DE FLOTA Y FILTROS ---
   const [flotaMantenimientoBD, setFlotaMantenimientoBD] = useState([]);
   const [nuevaPatenteMto, setNuevaPatenteMto] = useState('');
   const [nuevoModeloMto, setNuevoModeloMto] = useState('');
@@ -37,6 +37,7 @@ export default function Panel({ email }) {
   const [nuevoUltimoMtoKm, setNuevoUltimoMtoKm] = useState('');
   const [nuevoTipoMto, setNuevoTipoMto] = useState('Service completo de aceite y filtros');
   const [nuevoCostoMto, setNuevoCostoMto] = useState('');
+  const [filtroPatenteMto, setFiltroPatenteMto] = useState('');
 
   // ESTADOS PESTAÑA RÁPIDA DE ACTUALIZAR KM
   const [patenteRapidaKm, setPatenteRapidaKm] = useState('');
@@ -108,6 +109,12 @@ export default function Panel({ email }) {
     hotel: '',
     otros: ''
   });
+
+  // Lista unificada de todas las patentes únicas
+  const listaTodasPatentes = Array.from(new Set([
+    ...flotaVehiculos.map(v => v.dominio),
+    ...flotaMantenimientoBD.map(v => v.patente)
+  ])).filter(Boolean);
 
   // --- REGISTRAR Y ELIMINAR PERSONAL ---
   const agregarPersonal = (e) => {
@@ -200,7 +207,7 @@ export default function Panel({ email }) {
   const guardarVehiculoMantenimiento = async (e) => {
     e.preventDefault();
     if (!nuevaPatenteMto || !nuevoKmActualMto) {
-      alert('Por favor, ingresa la patente y el kilómetro actual.');
+      alert('Por favor, selecciona la patente y el kilómetro actual.');
       return;
     }
 
@@ -237,7 +244,39 @@ export default function Panel({ email }) {
     }
   };
 
-  // NUEVA FUNCIÓN: ACTUALIZACIÓN RÁPIDA DE KM PARA CUALQUIER TRANSPORTE
+  // Exportar mantenimiento a Excel
+  const exportarMantenimientoExcel = () => {
+    const listaExportar = filtroPatenteMto 
+      ? flotaMantenimientoBD.filter(v => v.patente === filtroPatenteMto)
+      : flotaMantenimientoBD;
+
+    const datosExportar = listaExportar.map(v => {
+      const kmActual = Number(v.km_actual || 0);
+      const ultimoMto = Number(v.km_ultimo_service || 0);
+      const frecuencia = Number(v.frecuencia_mto || 15000);
+      const proximoServiceKm = ultimoMto + frecuencia;
+      const kmRestantes = proximoServiceKm - kmActual;
+      const estado = kmRestantes <= 0 ? 'VENCIDO' : kmRestantes <= 2500 ? 'ALERTA' : 'En Vigencia';
+
+      return {
+        'Patente': v.patente,
+        'Modelo': v.modelo || '-',
+        'KM Actual': kmActual,
+        'KM Último Service': ultimoMto,
+        'Frecuencia Mto (KM)': frecuencia,
+        'Próximo Service (KM)': proximoServiceKm,
+        'Costo Acumulado ($)': Number(v.costo_mantenimiento || 0),
+        'Estado': estado
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(datosExportar);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Mantenimiento_Flota');
+    XLSX.writeFile(workbook, `Reporte_Mantenimiento_Flota_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  // Actualización rápida de KM
   const actualizarKmRapido = async (e) => {
     e.preventDefault();
     if (!patenteRapidaKm || !valorRapidoKm) {
@@ -247,8 +286,6 @@ export default function Panel({ email }) {
 
     const kmNumerico = Number(valorRapidoKm);
     const patenteUpper = patenteRapidaKm.toUpperCase();
-
-    // Buscar datos existentes para mantener su modelo y configuración
     const vehiculoExistente = flotaMantenimientoBD.find(v => v.patente === patenteUpper);
 
     try {
@@ -270,11 +307,10 @@ export default function Panel({ email }) {
       const data = await res.json();
 
       if (res.ok) {
-        // Actualizar estados locales para reflejo instantáneo
         setFlotaVehiculos(prev => prev.map(v => v.dominio === patenteUpper ? { ...v, km: kmNumerico } : v));
         alert(`¡Kilometraje de la patente ${patenteUpper} actualizado a ${kmNumerico} KM en todas las pestañas!`);
         setValorRapidoKm('');
-        cargarDatosBD(); // Sincroniza con la base de datos
+        cargarDatosBD();
       } else {
         alert('Error: ' + (data.error || 'No se pudo actualizar el kilometraje'));
       }
@@ -334,7 +370,7 @@ export default function Panel({ email }) {
     setVencPsicofisico(chofer.vencimiento_psicofisico ? chofer.vencimiento_psicofisico.slice(0, 10) : '');
   };
 
-  // Cargar pedidos, flota y carnets desde la BD
+  // Cargar datos desde la BD
   const cargarDatosBD = async () => {
     try {
       const res = await fetch('/api/pedidos', { cache: 'no-store' });
@@ -357,7 +393,6 @@ export default function Panel({ email }) {
         
         setFlotaMantenimientoBD(listaFlota);
 
-        // Sincronizar automáticamente la lista local de flotaVehiculos con los KM de la BD
         if (listaFlota.length > 0) {
           setFlotaVehiculos(prev => {
             const combinados = [...prev];
@@ -406,7 +441,6 @@ export default function Panel({ email }) {
     }
   }, [pestanaActiva, esChofer]);
 
-  // Si cambia la patente seleccionada en la pestaña rápida de KM, sugerir su KM actual
   useEffect(() => {
     if (patenteRapidaKm) {
       const veh = flotaVehiculos.find(v => v.dominio === patenteRapidaKm) || flotaMantenimientoBD.find(v => v.patente === patenteRapidaKm);
@@ -668,7 +702,6 @@ export default function Panel({ email }) {
   const listaMostrada = (pedidosBD.length > 0 ? pedidosBD : pedidosAsignados).filter(p => !pedidosArchivadosRuta.includes(p.id));
   const listaReportes = pedidosBD.length > 0 ? pedidosBD : [];
 
-  // Cálculos para el Dashboard superior
   const vehiculosOrdenadosCostos = [...flotaMantenimientoBD].sort((a, b) => Number(b.costo_mantenimiento || 0) - Number(a.costo_mantenimiento || 0));
   
   const hoyFecha = new Date();
@@ -677,15 +710,13 @@ export default function Panel({ email }) {
     return vencimientos.some(v => {
       if (!v) return false;
       const diasRestantes = (new Date(v) - hoyFecha) / (1000 * 60 * 60 * 24);
-      return diasRestantes <= 30; // Alerta si vence en 30 días o ya venció
+      return diasRestantes <= 30;
     });
   });
 
-  // Lista unificada de todas las patentes únicas
-  const listaTodasPatentes = Array.from(new Set([
-    ...flotaVehiculos.map(v => v.dominio),
-    ...flotaMantenimientoBD.map(v => v.patente)
-  ])).filter(Boolean);
+  const flotaMantenimientoFiltrada = filtroPatenteMto 
+    ? flotaMantenimientoBD.filter(v => v.patente === filtroPatenteMto)
+    : flotaMantenimientoBD;
 
   return (
     <div style={{ backgroundColor: '#f1f5f9', minHeight: '100vh', fontFamily: 'sans-serif' }}>
@@ -808,7 +839,6 @@ export default function Panel({ email }) {
                 🪪 Carnets Choferes
               </button>
 
-              {/* NUEVA PESTAÑA: ACTUALIZAR KM */}
               <button 
                 onClick={() => { setPestanaActiva('actualizarKm'); cargarDatosBD(); }}
                 style={{ backgroundColor: pestanaActiva === 'actualizarKm' ? '#1e293b' : '#d97706', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
@@ -1306,7 +1336,7 @@ export default function Panel({ email }) {
           </div>
         )}
 
-        {/* PESTAÑA 4: MANTENIMIENTO DE FLOTA */}
+        {/* PESTAÑA 4: MANTENIMIENTO DE FLOTA (ACTUALIZADA CON DESPLEGABLE, FILTRO Y DESCARGA EXCEL) */}
         {pestanaActiva === 'mantenimientoFlota' && !esChofer && (
           <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
             <h3 style={{ margin: '0 0 10px 0', fontSize: '20px', fontWeight: 'bold', color: '#0f172a' }}>
@@ -1321,14 +1351,28 @@ export default function Panel({ email }) {
               <form onSubmit={guardarVehiculoMantenimiento} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Patente:</label>
-                  <input 
-                    type="text" 
-                    placeholder="Ej: NEB732" 
+                  <select 
                     value={nuevaPatenteMto} 
-                    onChange={(e) => setNuevaPatenteMto(e.target.value.toUpperCase())} 
-                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                    required 
-                  />
+                    onChange={(e) => {
+                      const pat = e.target.value;
+                      setNuevaPatenteMto(pat);
+                      const veh = flotaMantenimientoBD.find(v => v.patente === pat) || flotaVehiculos.find(v => v.dominio === pat);
+                      if (veh) {
+                        setNuevoModeloMto(veh.modelo || '');
+                        setNuevoKmActualMto(veh.km_actual || veh.km || '');
+                        setNuevaFrecuenciaMto(veh.frecuencia_mto || 15000);
+                        setNuevoUltimoMtoKm(veh.km_ultimo_service || 0);
+                        setNuevoCostoMto(veh.costo_mantenimiento || 0);
+                      }
+                    }}
+                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#fff', fontWeight: 'bold' }}
+                    required
+                  >
+                    <option value="">-- Seleccionar Patente --</option>
+                    {listaTodasPatentes.map((pat, idx) => (
+                      <option key={idx} value={pat}>{pat}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Modelo:</label>
@@ -1388,6 +1432,30 @@ export default function Panel({ email }) {
               </form>
             </div>
 
+            {/* SECCIÓN DE FILTROS Y DESCARGA EXCEL */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#334155' }}>Filtrar reporte por Patente:</label>
+                <select 
+                  value={filtroPatenteMto} 
+                  onChange={(e) => setFiltroPatenteMto(e.target.value)}
+                  style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#fff', fontSize: '13px', fontWeight: 'bold' }}
+                >
+                  <option value="">Todas las patentes</option>
+                  {listaTodasPatentes.map((pat, idx) => (
+                    <option key={idx} value={pat}>{pat}</option>
+                  ))}
+                </select>
+              </div>
+
+              <button 
+                onClick={exportarMantenimientoExcel}
+                style={{ backgroundColor: '#15803d', color: 'white', border: 'none', padding: '9px 16px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}
+              >
+                📥 Descargar Mantenimiento a Excel (.xlsx)
+              </button>
+            </div>
+
             <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
                 <thead>
@@ -1401,41 +1469,49 @@ export default function Panel({ email }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {flotaMantenimientoBD.map((v, idx) => {
-                    const kmActual = Number(v.km_actual || 0);
-                    const ultimoMto = Number(v.km_ultimo_service || 0);
-                    const frecuencia = Number(v.frecuencia_mto || 15000);
-                    const proximoServiceKm = ultimoMto + frecuencia;
-                    const kmRestantes = proximoServiceKm - kmActual;
-                    
-                    const enAlerta = kmRestantes <= 2500;
-                    const vencido = kmRestantes <= 0;
+                  {flotaMantenimientoFiltrada.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" style={{ padding: '15px', textAlign: 'center', color: '#64748b' }}>
+                        No hay registros de mantenimiento para el filtro seleccionado.
+                      </td>
+                    </tr>
+                  ) : (
+                    flotaMantenimientoFiltrada.map((v, idx) => {
+                      const kmActual = Number(v.km_actual || 0);
+                      const ultimoMto = Number(v.km_ultimo_service || 0);
+                      const frecuencia = Number(v.frecuencia_mto || 15000);
+                      const proximoServiceKm = ultimoMto + frecuencia;
+                      const kmRestantes = proximoServiceKm - kmActual;
+                      
+                      const enAlerta = kmRestantes <= 2500;
+                      const vencido = kmRestantes <= 0;
 
-                    return (
-                      <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: vencido ? '#fee2e2' : enAlerta ? '#fef9c3' : '#fff' }}>
-                        <td style={{ padding: '10px', fontWeight: 'bold', fontFamily: 'monospace' }}>{v.patente}</td>
-                        <td style={{ padding: '10px' }}>{v.modelo}</td>
-                        <td style={{ padding: '10px', fontWeight: 'bold', color: '#0284c7' }}>{kmActual} km</td>
-                        <td style={{ padding: '10px', fontWeight: 'bold' }}>{proximoServiceKm} km</td>
-                        <td style={{ padding: '10px', fontWeight: 'bold', color: '#b91c1c' }}>${Number(v.costo_mantenimiento || 0).toLocaleString()}</td>
-                        <td style={{ padding: '10px' }}>
-                          {vencido ? (
-                            <span style={{ backgroundColor: '#b91c1c', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
-                              ⚠️ ¡VENCIDO!
-                            </span>
-                          ) : enAlerta ? (
-                            <span style={{ backgroundColor: '#ca8a04', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
-                              🚨 ALERTA ({kmRestantes} km)
-                            </span>
-                          ) : (
-                            <span style={{ backgroundColor: '#166534', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
-                              ✅ En Vigencia
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                      return (
+                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: vencido ? '#fee2e2' : enAlerta ? '#fef9c3' : '#fff' }}>
+                          <td style={{ padding: '10px', fontWeight: 'bold', fontFamily: 'monospace' }}>{v.patente}</td>
+                          <td style={{ padding: '10px' }}>{v.modelo}</td>
+                          <td style={{ padding: '10px', fontWeight: 'bold', color: '#0284c7' }}>{kmActual} km</td>
+                          <td style={{ padding: '10px', fontWeight: 'bold' }}>{proximoServiceKm} km</td>
+                          <td style={{ padding: '10px', fontWeight: 'bold', color: '#b91c1c' }}>${Number(v.costo_mantenimiento || 0).toLocaleString()}</td>
+                          <td style={{ padding: '10px' }}>
+                            {vencido ? (
+                              <span style={{ backgroundColor: '#b91c1c', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
+                                ⚠️ ¡VENCIDO!
+                              </span>
+                            ) : enAlerta ? (
+                              <span style={{ backgroundColor: '#ca8a04', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
+                                🚨 ALERTA ({kmRestantes} km)
+                              </span>
+                            ) : (
+                              <span style={{ backgroundColor: '#166534', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
+                                ✅ En Vigencia
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1572,7 +1648,7 @@ export default function Panel({ email }) {
           </div>
         )}
 
-        {/* NUEVA PESTAÑA 6: ACTUALIZAR KM DE CUALQUIER TRANSPORTE */}
+        {/* PESTAÑA 6: ACTUALIZAR KM DE CUALQUIER TRANSPORTE */}
         {pestanaActiva === 'actualizarKm' && !esChofer && (
           <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
             <h3 style={{ margin: '0 0 10px 0', fontSize: '20px', fontWeight: 'bold', color: '#0f172a' }}>
