@@ -39,7 +39,7 @@ export default function Panel({ email }) {
   const [nuevoCostoMto, setNuevoCostoMto] = useState('');
   const [filtroPatenteMto, setFiltroPatenteMto] = useState('');
 
-  // ESTADOS PESTAÑA RÁPIDA DE ACTUALIZAR KM
+  // ESTADOS PESTAÑA RÁPIDA DE ACTUALIZAR KM / HORAS
   const [patenteRapidaKm, setPatenteRapidaKm] = useState('');
   const [valorRapidoKm, setValorRapidoKm] = useState('');
 
@@ -65,17 +65,21 @@ export default function Panel({ email }) {
   const [nuevoEmailPersonal, setNuevoEmailPersonal] = useState('');
   const [nuevoTelPersonal, setNuevoTelPersonal] = useState('');
 
+  // Campos de registro de vehículo actualizados
   const [nuevoDominioVehiculo, setNuevoDominioVehiculo] = useState('');
   const [nuevoModeloVehiculo, setNuevoModeloVehiculo] = useState('');
   const [nuevoKmVehiculo, setNuevoKmVehiculo] = useState('');
+  const [tipoMedicionVehiculo, setTipoMedicionVehiculo] = useState('Kilómetros'); // 'Kilómetros' o 'Horas'
+  const [nuevasHorasVehiculo, setNuevasHorasVehiculo] = useState('');
 
   // Flota y choferes
   const listaChoferes = personalEmpresa.filter(p => p.rol === 'Chofer');
 
   const [flotaVehiculos, setFlotaVehiculos] = useState([
-    { dominio: 'NEB732', modelo: 'IVECO Daily', km: 124500, estado: 'Disponible', enMantenimiento: false },
-    { dominio: 'AF997GV', modelo: 'Mercedes Benz Sprinter', km: 98200, estado: 'Disponible', enMantenimiento: false },
-    { dominio: 'AD172YF', modelo: 'Mercedes Benz Atego', km: 210400, estado: 'Disponible', enMantenimiento: false }
+    { dominio: 'NEB732', modelo: 'IVECO Daily', km: 124500, horas: 0, tipoMedicion: 'Kilómetros', estado: 'Disponible', enMantenimiento: false },
+    { dominio: 'AF997GV', modelo: 'Mercedes Benz Sprinter', km: 98200, horas: 0, tipoMedicion: 'Kilómetros', estado: 'Disponible', enMantenimiento: false },
+    { dominio: 'AD172YF', modelo: 'Mercedes Benz Atego', km: 210400, horas: 0, tipoMedicion: 'Kilómetros', estado: 'Disponible', enMantenimiento: false },
+    { dominio: 'AUTOELEV-01', modelo: 'Autoelevador Toyota 2.5T', km: 0, horas: 1250, tipoMedicion: 'Horas', estado: 'Disponible', enMantenimiento: false }
   ]);
 
   const [choferSeleccionado, setChoferSeleccionado] = useState(listaChoferes[0]?.nombre || 'Juan Pérez');
@@ -145,21 +149,25 @@ export default function Panel({ email }) {
     }
   };
 
-  // --- REGISTRAR VEHÍCULOS ---
+  // --- REGISTRAR VEHÍCULOS / AUTOELEVADORES ---
   const agregarVehiculo = async (e) => {
     e.preventDefault();
     if (!nuevoDominioVehiculo || !nuevoModeloVehiculo) {
-      alert('Por favor, ingresa la patente (dominio) y el modelo.');
+      alert('Por favor, ingresa la patente/identificador y el modelo.');
       return;
     }
 
     const patenteUpper = nuevoDominioVehiculo.toUpperCase();
     const kmVal = parseFloat(nuevoKmVehiculo) || 0;
+    const horasVal = parseFloat(nuevasHorasVehiculo) || 0;
+    const valorPrincipalMto = tipoMedicionVehiculo === 'Horas' ? horasVal : kmVal;
 
     const nuevoVeh = {
       dominio: patenteUpper,
       modelo: nuevoModeloVehiculo,
       km: kmVal,
+      horas: horasVal,
+      tipoMedicion: tipoMedicionVehiculo,
       estado: 'Disponible',
       enMantenimiento: false
     };
@@ -178,11 +186,11 @@ export default function Panel({ email }) {
         body: JSON.stringify({
           patente: patenteUpper,
           modelo: nuevoModeloVehiculo,
-          tipo_vehiculo: 'Furgón',
-          km_actual: kmVal,
-          frecuencia_mto: 15000,
+          tipo_vehiculo: tipoMedicionVehiculo === 'Horas' ? 'Autoelevador' : 'Furgón',
+          km_actual: valorPrincipalMto,
+          frecuencia_mto: tipoMedicionVehiculo === 'Horas' ? 250 : 15000,
           km_ultimo_service: 0,
-          tipo_mantenimiento: 'Service completo de aceite y filtros',
+          tipo_mantenimiento: tipoMedicionVehiculo === 'Horas' ? 'Service de Horómetro / Autoelevador' : 'Service completo de aceite y filtros',
           costo_mantenimiento: 0
         })
       });
@@ -194,11 +202,13 @@ export default function Panel({ email }) {
     setNuevoDominioVehiculo('');
     setNuevoModeloVehiculo('');
     setNuevoKmVehiculo('');
-    alert(`¡Vehículo patente ${patenteUpper} registrado y vinculado!`);
+    setNuevasHorasVehiculo('');
+    setTipoMedicionVehiculo('Kilómetros');
+    alert(`¡Vehículo/Unidad patente ${patenteUpper} registrado y vinculado!`);
   };
 
   const eliminarVehiculo = (dominio) => {
-    if (confirm(`¿Deseas eliminar el vehículo patente ${dominio} de la flota?`)) {
+    if (confirm(`¿Deseas eliminar la unidad/vehículo patente ${dominio} de la flota?`)) {
       setFlotaVehiculos(flotaVehiculos.filter(v => v.dominio !== dominio));
     }
   };
@@ -207,7 +217,7 @@ export default function Panel({ email }) {
   const guardarVehiculoMantenimiento = async (e) => {
     e.preventDefault();
     if (!nuevaPatenteMto || !nuevoKmActualMto) {
-      alert('Por favor, selecciona la patente y el kilómetro actual.');
+      alert('Por favor, selecciona la patente y el kilometraje/horas actuales.');
       return;
     }
 
@@ -261,10 +271,10 @@ export default function Panel({ email }) {
       return {
         'Patente': v.patente,
         'Modelo': v.modelo || '-',
-        'KM Actual': kmActual,
-        'KM Último Service': ultimoMto,
-        'Frecuencia Mto (KM)': frecuencia,
-        'Próximo Service (KM)': proximoServiceKm,
+        'Uso / Lectura Actual': kmActual,
+        'Lectura Último Service': ultimoMto,
+        'Frecuencia Mto': frecuencia,
+        'Próximo Service': proximoServiceKm,
         'Costo Acumulado ($)': Number(v.costo_mantenimiento || 0),
         'Estado': estado
       };
@@ -276,11 +286,11 @@ export default function Panel({ email }) {
     XLSX.writeFile(workbook, `Reporte_Mantenimiento_Flota_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
-  // Actualización rápida de KM
+  // Actualización rápida de KM / Horas
   const actualizarKmRapido = async (e) => {
     e.preventDefault();
     if (!patenteRapidaKm || !valorRapidoKm) {
-      alert('Por favor, selecciona una patente e ingresa el nuevo kilometraje.');
+      alert('Por favor, selecciona una patente e ingresa la nueva lectura (KM u Horas).');
       return;
     }
 
@@ -307,15 +317,15 @@ export default function Panel({ email }) {
       const data = await res.json();
 
       if (res.ok) {
-        setFlotaVehiculos(prev => prev.map(v => v.dominio === patenteUpper ? { ...v, km: kmNumerico } : v));
-        alert(`¡Kilometraje de la patente ${patenteUpper} actualizado a ${kmNumerico} KM en todas las pestañas!`);
+        setFlotaVehiculos(prev => prev.map(v => v.dominio === patenteUpper ? { ...v, km: kmNumerico, horas: kmNumerico } : v));
+        alert(`¡Lectura de la patente ${patenteUpper} actualizada a ${kmNumerico} en todas las pestañas!`);
         setValorRapidoKm('');
         cargarDatosBD();
       } else {
-        alert('Error: ' + (data.error || 'No se pudo actualizar el kilometraje'));
+        alert('Error: ' + (data.error || 'No se pudo actualizar la lectura'));
       }
     } catch (error) {
-      alert('Error de conexión al actualizar kilometraje.');
+      alert('Error de conexión al actualizar la lectura.');
     }
   };
 
@@ -405,6 +415,8 @@ export default function Panel({ email }) {
                   dominio: bdVeh.patente,
                   modelo: bdVeh.modelo || 'Transporte Flota',
                   km: Number(bdVeh.km_actual || 0),
+                  horas: Number(bdVeh.km_actual || 0),
+                  tipoMedicion: bdVeh.tipo_vehiculo === 'Autoelevador' ? 'Horas' : 'Kilómetros',
                   estado: 'Disponible',
                   enMantenimiento: false
                 });
@@ -445,7 +457,7 @@ export default function Panel({ email }) {
     if (patenteRapidaKm) {
       const veh = flotaVehiculos.find(v => v.dominio === patenteRapidaKm) || flotaMantenimientoBD.find(v => v.patente === patenteRapidaKm);
       if (veh) {
-        setValorRapidoKm(veh.km || veh.km_actual || '');
+        setValorRapidoKm(veh.km || veh.horas || veh.km_actual || '');
       }
     }
   }, [patenteRapidaKm]);
@@ -950,7 +962,7 @@ export default function Panel({ email }) {
                     >
                       {flotaVehiculos.map((v, idx) => (
                         <option key={idx} value={v.dominio} disabled={v.enMantenimiento}>
-                          {v.dominio} - {v.modelo} ({v.km} km)
+                          {v.dominio} - {v.modelo} ({v.tipoMedicion === 'Horas' ? `${v.horas} Horas` : `${v.km} km`})
                         </option>
                       ))}
                     </select>
@@ -1155,7 +1167,7 @@ export default function Panel({ email }) {
           </div>
         )}
 
-        {/* PESTAÑA 3: FLOTA Y PERSONAL */}
+        {/* PESTAÑA 3: FLOTA Y PERSONAL (ACTUALIZADO CON HORAS DE TRABAJO / AUTOELEVADOR) */}
         {pestanaActiva === 'flotaPersonal' && !esChofer && (
           <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
             <h3 style={{ margin: '0 0 20px 0', fontSize: '20px', fontWeight: 'bold', color: '#0f172a' }}>
@@ -1219,14 +1231,15 @@ export default function Panel({ email }) {
                 </form>
               </div>
 
+              {/* REGISTRAR VEHÍCULO / AUTOELEVADORES POR HORAS O KM */}
               <div style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                <h4 style={{ margin: '0 0 15px 0', color: '#064e3b', fontSize: '16px' }}>🚛 Registrar Vehículo</h4>
+                <h4 style={{ margin: '0 0 15px 0', color: '#064e3b', fontSize: '16px' }}>🚛 Registrar Vehículo / Autoelevador</h4>
                 <form onSubmit={agregarVehiculo}>
                   <div style={{ marginBottom: '12px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Patente / Dominio:</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Patente / Dominio / ID:</label>
                     <input 
                       type="text" 
-                      placeholder="Ej: NEB732" 
+                      placeholder="Ej: NEB732 o AUTOELEV-01" 
                       value={nuevoDominioVehiculo} 
                       onChange={(e) => setNuevoDominioVehiculo(e.target.value)} 
                       style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', textTransform: 'uppercase' }}
@@ -1238,7 +1251,7 @@ export default function Panel({ email }) {
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Modelo:</label>
                     <input 
                       type="text" 
-                      placeholder="Ej: IVECO Daily" 
+                      placeholder="Ej: IVECO Daily o Toyota 2.5T" 
                       value={nuevoModeloVehiculo} 
                       onChange={(e) => setNuevoModeloVehiculo(e.target.value)} 
                       style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
@@ -1246,19 +1259,45 @@ export default function Panel({ email }) {
                     />
                   </div>
 
-                  <div style={{ marginBottom: '15px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Kilometraje Actual:</label>
-                    <input 
-                      type="number" 
-                      placeholder="124500" 
-                      value={nuevoKmVehiculo} 
-                      onChange={(e) => setNuevoKmVehiculo(e.target.value)} 
-                      style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
-                    />
+                  <div style={{ marginBottom: '12px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Medición de Uso / Mantenimiento:</label>
+                    <select 
+                      value={tipoMedicionVehiculo} 
+                      onChange={(e) => setTipoMedicionVehiculo(e.target.value)}
+                      style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#fff' }}
+                    >
+                      <option value="Kilómetros">Kilómetros (Camiones / Furgones)</option>
+                      <option value="Horas">Horas de Trabajo - Horómetro (Autoelevadores / Maquinaria)</option>
+                    </select>
                   </div>
 
+                  {tipoMedicionVehiculo === 'Kilómetros' ? (
+                    <div style={{ marginBottom: '15px' }}>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Kilometraje Actual:</label>
+                      <input 
+                        type="number" 
+                        placeholder="124500" 
+                        value={nuevoKmVehiculo} 
+                        onChange={(e) => setNuevoKmVehiculo(e.target.value)} 
+                        style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
+                      />
+                    </div>
+                  ) : (
+                    <div style={{ marginBottom: '15px' }}>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#b45309' }}>⚙️ Horas de Trabajo Actuales (Horómetro):</label>
+                      <input 
+                        type="number" 
+                        placeholder="Ej: 1250" 
+                        value={nuevasHorasVehiculo} 
+                        onChange={(e) => setNuevasHorasVehiculo(e.target.value)} 
+                        style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #f59e0b', backgroundColor: '#fffbeb' }} 
+                        required
+                      />
+                    </div>
+                  )}
+
                   <button type="submit" style={{ width: '100%', padding: '10px', backgroundColor: '#0284c7', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
-                    Guardar Vehículo
+                    Guardar Vehículo / Unidad
                   </button>
                 </form>
               </div>
@@ -1302,14 +1341,14 @@ export default function Panel({ email }) {
               </div>
 
               <div>
-                <h4 style={{ margin: '0 0 10px 0', color: '#1e293b' }}>🚛 Vehículos Activos</h4>
+                <h4 style={{ margin: '0 0 10px 0', color: '#1e293b' }}>🚛 Vehículos y Autoelevadores Activos</h4>
                 <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
                     <thead>
                       <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
-                        <th style={{ padding: '8px' }}>Patente</th>
+                        <th style={{ padding: '8px' }}>Patente/ID</th>
                         <th style={{ padding: '8px' }}>Modelo</th>
-                        <th style={{ padding: '8px' }}>Km</th>
+                        <th style={{ padding: '8px' }}>Uso Actual</th>
                         <th style={{ padding: '8px', textAlign: 'center' }}>Acción</th>
                       </tr>
                     </thead>
@@ -1318,7 +1357,9 @@ export default function Panel({ email }) {
                         <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
                           <td style={{ padding: '8px', fontWeight: 'bold', fontFamily: 'monospace' }}>{v.dominio}</td>
                           <td style={{ padding: '8px' }}>{v.modelo}</td>
-                          <td style={{ padding: '8px', color: '#0284c7', fontWeight: 'bold' }}>{v.km} km</td>
+                          <td style={{ padding: '8px', color: v.tipoMedicion === 'Horas' ? '#b45309' : '#0284c7', fontWeight: 'bold' }}>
+                            {v.tipoMedicion === 'Horas' ? `⚙️ ${v.horas} Horas` : `🛣️ ${v.km} km`}
+                          </td>
                           <td style={{ padding: '8px', textAlign: 'center' }}>
                             <button onClick={() => eliminarVehiculo(v.dominio)} style={{ backgroundColor: '#fee2e2', color: '#b91c1c', border: 'none', borderRadius: '4px', padding: '4px 6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
                               🗑️
@@ -1336,21 +1377,21 @@ export default function Panel({ email }) {
           </div>
         )}
 
-        {/* PESTAÑA 4: MANTENIMIENTO DE FLOTA (ACTUALIZADA CON DESPLEGABLE, FILTRO Y DESCARGA EXCEL) */}
+        {/* PESTAÑA 4: MANTENIMIENTO DE FLOTA */}
         {pestanaActiva === 'mantenimientoFlota' && !esChofer && (
           <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
             <h3 style={{ margin: '0 0 10px 0', fontSize: '20px', fontWeight: 'bold', color: '#0f172a' }}>
               🛠️ Control de Mantenimiento Preventivo y Costos
             </h3>
             <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px' }}>
-              Monitoreo automático de kilometrajes y costos asociados al mantenimiento de la flota.
+              Monitoreo automático de kilometrajes, horas de uso y costos asociados al mantenimiento de la flota.
             </p>
 
             <div style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '25px' }}>
-              <h4 style={{ margin: '0 0 15px 0', color: '#b45309', fontSize: '16px' }}>📝 Registrar / Actualizar Kilometraje, Service y Costos</h4>
+              <h4 style={{ margin: '0 0 15px 0', color: '#b45309', fontSize: '16px' }}>📝 Registrar / Actualizar Uso (Km/Horas), Service y Costos</h4>
               <form onSubmit={guardarVehiculoMantenimiento} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Patente:</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Patente/ID:</label>
                   <select 
                     value={nuevaPatenteMto} 
                     onChange={(e) => {
@@ -1359,8 +1400,8 @@ export default function Panel({ email }) {
                       const veh = flotaMantenimientoBD.find(v => v.patente === pat) || flotaVehiculos.find(v => v.dominio === pat);
                       if (veh) {
                         setNuevoModeloMto(veh.modelo || '');
-                        setNuevoKmActualMto(veh.km_actual || veh.km || '');
-                        setNuevaFrecuenciaMto(veh.frecuencia_mto || 15000);
+                        setNuevoKmActualMto(veh.km_actual || veh.km || veh.horas || '');
+                        setNuevaFrecuenciaMto(veh.frecuencia_mto || (veh.tipoMedicion === 'Horas' ? 250 : 15000));
                         setNuevoUltimoMtoKm(veh.km_ultimo_service || 0);
                         setNuevoCostoMto(veh.costo_mantenimiento || 0);
                       }
@@ -1378,17 +1419,17 @@ export default function Panel({ email }) {
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Modelo:</label>
                   <input 
                     type="text" 
-                    placeholder="Ej: IVECO Daily" 
+                    placeholder="Ej: IVECO / Toyota" 
                     value={nuevoModeloMto} 
                     onChange={(e) => setNuevoModeloMto(e.target.value)} 
                     style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Km Actual:</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Km / Horas Actuales:</label>
                   <input 
                     type="number" 
-                    placeholder="124500" 
+                    placeholder="124500 o 1250" 
                     value={nuevoKmActualMto} 
                     onChange={(e) => setNuevoKmActualMto(e.target.value)} 
                     style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
@@ -1396,7 +1437,7 @@ export default function Panel({ email }) {
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Frecuencia Mto (Km):</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Frecuencia Service:</label>
                   <input 
                     type="number" 
                     value={nuevaFrecuenciaMto} 
@@ -1405,7 +1446,7 @@ export default function Panel({ email }) {
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Km Último Service:</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Lectura Último Service:</label>
                   <input 
                     type="number" 
                     placeholder="115000" 
@@ -1462,7 +1503,7 @@ export default function Panel({ email }) {
                   <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#334155' }}>
                     <th style={{ padding: '10px' }}>Patente</th>
                     <th style={{ padding: '10px' }}>Modelo</th>
-                    <th style={{ padding: '10px' }}>Km Actual</th>
+                    <th style={{ padding: '10px' }}>Lectura Actual</th>
                     <th style={{ padding: '10px' }}>Próximo Service</th>
                     <th style={{ padding: '10px' }}>Costo Acumulado</th>
                     <th style={{ padding: '10px' }}>Estado / Alerta</th>
@@ -1490,8 +1531,8 @@ export default function Panel({ email }) {
                         <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: vencido ? '#fee2e2' : enAlerta ? '#fef9c3' : '#fff' }}>
                           <td style={{ padding: '10px', fontWeight: 'bold', fontFamily: 'monospace' }}>{v.patente}</td>
                           <td style={{ padding: '10px' }}>{v.modelo}</td>
-                          <td style={{ padding: '10px', fontWeight: 'bold', color: '#0284c7' }}>{kmActual} km</td>
-                          <td style={{ padding: '10px', fontWeight: 'bold' }}>{proximoServiceKm} km</td>
+                          <td style={{ padding: '10px', fontWeight: 'bold', color: '#0284c7' }}>{kmActual}</td>
+                          <td style={{ padding: '10px', fontWeight: 'bold' }}>{proximoServiceKm}</td>
                           <td style={{ padding: '10px', fontWeight: 'bold', color: '#b91c1c' }}>${Number(v.costo_mantenimiento || 0).toLocaleString()}</td>
                           <td style={{ padding: '10px' }}>
                             {vencido ? (
@@ -1500,7 +1541,7 @@ export default function Panel({ email }) {
                               </span>
                             ) : enAlerta ? (
                               <span style={{ backgroundColor: '#ca8a04', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
-                                🚨 ALERTA ({kmRestantes} km)
+                                🚨 ALERTA ({kmRestantes})
                               </span>
                             ) : (
                               <span style={{ backgroundColor: '#166534', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
@@ -1648,14 +1689,14 @@ export default function Panel({ email }) {
           </div>
         )}
 
-        {/* PESTAÑA 6: ACTUALIZAR KM DE CUALQUIER TRANSPORTE */}
+        {/* PESTAÑA 6: ACTUALIZAR KM / HORAS DE CUALQUIER TRANSPORTE */}
         {pestanaActiva === 'actualizarKm' && !esChofer && (
           <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
             <h3 style={{ margin: '0 0 10px 0', fontSize: '20px', fontWeight: 'bold', color: '#0f172a' }}>
-              ⏱️ Actualizar Kilometraje de Transporte
+              ⏱️ Actualizar Lectura de Transporte (KM / Horas)
             </h3>
             <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px' }}>
-              Selecciona cualquier vehículo/patente de la flota e ingresa su nuevo odómetro. La actualización se propagará a todas las demás pestañas automáticamente.
+              Selecciona cualquier vehículo/autoelevador de la flota e ingresa su nuevo odómetro/horómetro. La actualización se propagará a todas las demás pestañas automáticamente.
             </p>
 
             <div style={{ backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', padding: '20px', maxWidth: '650px' }}>
@@ -1663,7 +1704,7 @@ export default function Panel({ email }) {
                 
                 <div style={{ marginBottom: '16px' }}>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#92400e', marginBottom: '6px' }}>
-                    Seleccionar Vehículo / Patente:
+                    Seleccionar Unidad / Patente:
                   </label>
                   <select 
                     value={patenteRapidaKm} 
@@ -1674,10 +1715,10 @@ export default function Panel({ email }) {
                     <option value="">-- Selecciona una Patente --</option>
                     {listaTodasPatentes.map((pat, idx) => {
                       const obj = flotaVehiculos.find(v => v.dominio === pat) || flotaMantenimientoBD.find(v => v.patente === pat);
-                      const kmActual = obj?.km || obj?.km_actual || 0;
+                      const lectura = obj?.km || obj?.horas || obj?.km_actual || 0;
                       return (
                         <option key={idx} value={pat}>
-                          🚘 {pat} ({obj?.modelo || 'Transporte'}) - Actual: {kmActual} KM
+                          🚘 {pat} ({obj?.modelo || 'Unidad'}) - Actual: {lectura}
                         </option>
                       );
                     })}
@@ -1686,11 +1727,11 @@ export default function Panel({ email }) {
 
                 <div style={{ marginBottom: '20px' }}>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#92400e', marginBottom: '6px' }}>
-                    Nuevo Kilometraje (KM):
+                    Nueva Lectura (KM / Horas de Trabajo):
                   </label>
                   <input 
                     type="number" 
-                    placeholder="Ej: 125000" 
+                    placeholder="Ej: 125000 o 1300" 
                     value={valorRapidoKm} 
                     onChange={(e) => setValorRapidoKm(e.target.value)} 
                     style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '15px', fontWeight: 'bold' }}
@@ -1702,7 +1743,7 @@ export default function Panel({ email }) {
                   type="submit" 
                   style={{ width: '100%', padding: '12px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer' }}
                 >
-                  ⚡ Actualizar Kilometraje en Todas las Pestañas
+                  ⚡ Actualizar Lectura en Todas las Pestañas
                 </button>
               </form>
             </div>
