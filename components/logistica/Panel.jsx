@@ -274,6 +274,17 @@ export default function Panel({ email }) {
     }
   };
 
+  // Función para cargar los datos del chofer en el formulario y corregir fechas
+  const editarChoferCarnet = (chofer) => {
+    setNombreChoferCarnet(chofer.nombre_chofer || '');
+    setDniChoferCarnet(chofer.dni || '');
+    setTelChoferCarnet(chofer.telefono || '');
+    setVencConducir(chofer.vencimiento_carnet_conducir ? chofer.vencimiento_carnet_conducir.slice(0, 10) : '');
+    setVencPeligrosas(chofer.vencimiento_cargas_peligrosas ? chofer.vencimiento_cargas_peligrosas.slice(0, 10) : '');
+    setVencGenerales(chofer.vencimiento_cargas_generales ? chofer.vencimiento_cargas_generales.slice(0, 10) : '');
+    setVencPsicofisico(chofer.vencimiento_psicofisico ? chofer.vencimiento_psicofisico.slice(0, 10) : '');
+  };
+
   // Cargar pedidos, flota y carnets desde la BD
   const cargarDatosBD = async () => {
     try {
@@ -1350,7 +1361,7 @@ export default function Panel({ email }) {
 
             <div style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '25px' }}>
               <h4 style={{ margin: '0 0 15px 0', color: '#0369a1', fontSize: '16px' }}>📝 Registrar / Actualizar Vencimientos de Carnets</h4>
-              <form onSubmit={choferesCarnetsBD && guardarChoferCarnet} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '15px' }}>
+              <form onSubmit={guardarChoferCarnet} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '15px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Nombre Chofer:</label>
                   <input 
@@ -1437,6 +1448,7 @@ export default function Panel({ email }) {
                     <th style={{ padding: '10px' }}>Cargas Peligrosas</th>
                     <th style={{ padding: '10px' }}>Cargas Generales</th>
                     <th style={{ padding: '10px' }}>Exámen Psicofísico</th>
+                    <th style={{ padding: '10px', textAlign: 'center' }}>Acción</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1448,6 +1460,16 @@ export default function Panel({ email }) {
                       <td style={{ padding: '10px' }}>{c.vencimiento_cargas_peligrosas ? c.vencimiento_cargas_peligrosas.slice(0, 10) : '-'}</td>
                       <td style={{ padding: '10px' }}>{c.vencimiento_cargas_generales ? c.vencimiento_cargas_generales.slice(0, 10) : '-'}</td>
                       <td style={{ padding: '10px' }}>{c.vencimiento_psicofisico ? c.vencimiento_psicofisico.slice(0, 10) : '-'}</td>
+                      <td style={{ padding: '10px', textAlign: 'center' }}>
+                        <button 
+                          type="button"
+                          onClick={() => editarChoferCarnet(c)}
+                          title="Modificar o corregir fechas"
+                          style={{ backgroundColor: '#fef3c7', color: '#92400e', border: 'none', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
+                        >
+                          ✏️ Modificar
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
