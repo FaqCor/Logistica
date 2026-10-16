@@ -29,7 +29,16 @@ export default function Panel({ email }) {
   // Estado local para ocultar entregados en la vista de rutas sin borrarlos de la BD ni del reporte
   const [pedidosArchivadosRuta, setPedidosArchivadosRuta] = useState([]);
 
-  // --- PASO 1: NUEVOS ESTADOS PARA GESTIÓN DE FLOTA Y PERSONAL (CHOFERES Y AYUDANTES) ---
+  // --- NUEVOS ESTADOS PARA GESTIÓN DE FLOTA Y MANTENIMIENTO ---
+  const [flotaMantenimientoBD, setFlotaMantenimientoBD] = useState([]);
+  const [nuevaPatenteMto, setNuevaPatenteMto] = useState('');
+  const [nuevoModeloMto, setNuevoModeloMto] = useState('');
+  const [nuevoKmActualMto, setNuevoKmActualMto] = useState('');
+  const [nuevaFrecuenciaMto, setNuevaFrecuenciaMto] = useState('15000');
+  const [nuevoUltimoMtoKm, setNuevoUltimoMtoKm] = useState('');
+  const [nuevoTipoMto, setNuevoTipoMto] = useState('Service completo de aceite y filtros');
+
+  // --- ESTADOS PARA PERSONAL Y VEHÍCULOS ---
   const [personalEmpresa, setPersonalEmpresa] = useState([
     { id: 1, nombre: 'Juan Pérez', rol: 'Chofer', email: 'chofer@demo.com', telefono: '3874556677' },
     { id: 2, nombre: 'Carlos Gómez', rol: 'Chofer', email: 'carlos@dmmaestro.com', telefono: '3875112233' },
@@ -87,7 +96,7 @@ export default function Panel({ email }) {
     otros: ''
   });
 
-  // --- PASO 2: FUNCIONES PARA REGISTRAR PERSONAL Y VEHÍCULOS ---
+  // --- FUNCIONES PARA REGISTRAR PERSONAL Y VEHÍCULOS ---
   const agregarPersonal = (e) => {
     e.preventDefault();
     if (!nuevoNombrePersonal) {
@@ -132,14 +141,60 @@ export default function Panel({ email }) {
     alert(`¡Vehículo patente ${nuevoVeh.dominio} añadido a la flota correctamente!`);
   };
 
-  // Cargar pedidos desde la BD en tiempo real
-  const cargarPedidos = async () => {
+  // Guardar o actualizar mantenimiento en la BD
+  const guardarVehiculoMantenimiento = async (e) => {
+    e.preventDefault();
+    if (!nuevaPatenteMto || !nuevoKmActualMto) {
+      alert('Por favor, ingresa la patente y el kilómetro actual.');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/flota', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patente: nuevaPatenteMto,
+          modelo: nuevoModeloMto || 'Vehículo General',
+          kmActual: nuevoKmActualMto,
+          frecuencia: nuevaFrecuenciaMto,
+          ultimoKm: nuevoUltimoMtoKm || 0,
+          tipoMantenimiento: nuevoTipoMto
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message);
+        setNuevaPatenteMto('');
+        setNuevoModeloMto('');
+        setNuevoKmActualMto('');
+        setNuevoUltimoMtoKm('');
+        cargarDatosBD();
+      } else {
+        alert('Error: ' + data.error);
+      }
+    } catch (error) {
+      alert('Error al conectar con el servidor.');
+    }
+  };
+
+  // Cargar pedidos y flota desde la BD en tiempo real
+  const cargarDatosBD = async () => {
     try {
       const res = await fetch('/api/pedidos', { cache: 'no-store' });
-      if (!res.ok) throw new Error('Error de conexión');
-      const data = await res.json();
-      if (data.success && Array.isArray(data.pedidos)) {
-        setPedidosBD(data.pedidos);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.pedidos)) {
+          setPedidosBD(data.pedidos);
+        }
+      }
+
+      const resFlota = await fetch('/api/flota', { cache: 'no-store' });
+      if (resFlota.ok) {
+        const dataFlota = await resFlota.json();
+        if (dataFlota.success && Array.isArray(dataFlota.flota)) {
+          setFlotaMantenimientoBD(dataFlota.flota);
+        }
       }
     } catch (err) {
       console.warn('Utilizando datos locales o cargados previamente.');
@@ -147,14 +202,14 @@ export default function Panel({ email }) {
   };
 
   useEffect(() => {
-    cargarPedidos();
+    cargarDatosBD();
   }, []);
 
   useEffect(() => {
     if (!esChofer) {
-      cargarPedidos();
+      cargarDatosBD();
       const interval = setInterval(() => {
-        cargarPedidos();
+        cargarDatosBD();
       }, 5000);
       return () => clearInterval(interval);
     }
@@ -185,9 +240,8 @@ export default function Panel({ email }) {
       if (res.ok) {
         alert(result.message);
         setModalAbierto(false);
-        // Limpiar los archivados locales de la vista operativa para recibir los nuevos del Excel
         setPedidosArchivadosRuta([]);
-        cargarPedidos();
+        cargarDatosBD();
       } else {
         alert('Error: ' + result.error);
       }
@@ -273,6 +327,25 @@ export default function Panel({ email }) {
           kmRecorridos: kmPedido
         })
       });
+
+      // Actualizar automáticamente los kilómetros del vehículo en la flota de mantenimiento
+      const vehiculoEnUso = flotaMantenimientoBD.find(v => v.patente === vehiculoSeleccionado);
+      if (vehiculoEnUso) {
+        const nuevoKmActual = Number(vehiculoEnUso.km_actual || 0) + Number(kmPedido);
+        await fetch('/api/flota', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            patente: vehiculoEnUso.patente,
+            modelo: vehiculoEnUso.modelo,
+            kmActual: nuevoKmActual,
+            frecuencia: vehiculoEnUso.frecuencia_mantenimiento,
+            ultimoKm: vehiculoEnUso.ultimo_mantenimiento_km,
+            tipoMantenimiento: vehiculoEnUso.tipo_mantenimiento
+          })
+        });
+      }
+
       alert(`¡Pedido #${pedidoACerrar.id} registrado correctamente!`);
     } catch (err) {
       console.warn('Error guardando en backend.');
@@ -301,17 +374,39 @@ export default function Panel({ email }) {
     setKmEntregaInterurbana('');
     setGastos({ desayuno: '', almuerzo: '', merienda: '', cena: '', hotel: '', otros: '' });
     
-    cargarPedidos();
+    cargarDatosBD();
   };
 
-  const confirmarCierreFinalViaje = () => {
+  const confirmarCierreFinalViaje = async () => {
     if (!kmFinalViajeSalta) {
       alert('Ingresa el kilometraje final del vehículo al momento del regreso.');
       return;
     }
+
+    try {
+      const vehiculoEnUso = flotaMantenimientoBD.find(v => v.patente === vehiculoSeleccionado);
+      if (vehiculoEnUso) {
+        await fetch('/api/flota', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            patente: vehiculoEnUso.patente,
+            modelo: vehiculoEnUso.modelo,
+            kmActual: kmFinalViajeSalta,
+            frecuencia: vehiculoEnUso.frecuencia_mantenimiento,
+            ultimoKm: vehiculoEnUso.ultimo_mantenimiento_km,
+            tipoMantenimiento: vehiculoEnUso.tipo_mantenimiento
+          })
+        });
+      }
+    } catch (err) {
+      console.warn('No se pudo actualizar el km final en flota.');
+    }
+
     alert(`¡Viaje finalizado con éxito!\nKilometraje final del vehículo registrado: ${kmFinalViajeSalta} km.`);
     setModalCierreFinalViaje(false);
     setKmFinalViajeSalta('');
+    cargarDatosBD();
   };
 
   const exportarReporteExcel = () => {
@@ -395,7 +490,7 @@ export default function Panel({ email }) {
       {/* CONTENIDO PRINCIPAL */}
       <div style={{ padding: '24px', maxWidth: '1100px', margin: '0 auto' }}>
         
-        {/* TÍTULO Y PASO 3: BOTONERA DE NAVEGACIÓN */}
+        {/* TÍTULO Y BOTONERA DE NAVEGACIÓN */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
           <div>
             <h1 style={{ fontSize: '24px', fontWeight: 'bold', margin: 0, color: '#0f172a' }}>
@@ -411,24 +506,31 @@ export default function Panel({ email }) {
           {!esChofer && (
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
               <button 
-                onClick={() => { setPestanaActiva('gestion'); cargarPedidos(); }}
+                onClick={() => { setPestanaActiva('gestion'); cargarDatosBD(); }}
                 style={{ backgroundColor: pestanaActiva === 'gestion' ? '#1e293b' : '#64748b', color: 'white', border: 'none', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}
               >
                 🗺️ Rutas y Asignación
               </button>
               <button 
-                onClick={() => { setPestanaActiva('reportes'); cargarPedidos(); }}
+                onClick={() => { setPestanaActiva('reportes'); cargarDatosBD(); }}
                 style={{ backgroundColor: pestanaActiva === 'reportes' ? '#1e293b' : '#64748b', color: 'white', border: 'none', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}
               >
                 📊 Reportes y Exportación
               </button>
 
-              {/* BOTÓN PASO 3: FLOTA Y PERSONAL */}
               <button 
                 onClick={() => setPestanaActiva('flotaPersonal')}
                 style={{ backgroundColor: pestanaActiva === 'flotaPersonal' ? '#1e293b' : '#64748b', color: 'white', border: 'none', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}
               >
                 🚚 Flota y Personal
+              </button>
+
+              {/* NUEVA PESTAÑA DE MANTENIMIENTO */}
+              <button 
+                onClick={() => setPestanaActiva('mantenimientoFlota')}
+                style={{ backgroundColor: pestanaActiva === 'mantenimientoFlota' ? '#1e293b' : '#b45309', color: 'white', border: 'none', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}
+              >
+                🛠️ Mantenimiento de Flota
               </button>
 
               <button 
@@ -464,55 +566,10 @@ export default function Panel({ email }) {
                 />
               </div>
 
-              <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '15px' }}>
-                <p style={{ margin: '0 0 10px 0', fontWeight: 'bold', fontSize: '14px', color: '#1e293b' }}>Luces (altas, bajas, giro, freno)</p>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <button type="button" style={{ flex: 1, padding: '10px', backgroundColor: '#064e3b', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Está bien</button>
-                  <button type="button" style={{ flex: 1, padding: '10px', backgroundColor: '#fff', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Tiene falla</button>
-                </div>
-              </div>
-
-              <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '15px' }}>
-                <p style={{ margin: '0 0 10px 0', fontWeight: 'bold', fontSize: '14px', color: '#1e293b' }}>Neumáticos y rueda de auxilio</p>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <button type="button" style={{ flex: 1, padding: '10px', backgroundColor: '#064e3b', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Está bien</button>
-                  <button type="button" style={{ flex: 1, padding: '10px', backgroundColor: '#fff', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Tiene falla</button>
-                </div>
-              </div>
-
-              <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '15px' }}>
-                <p style={{ margin: '0 0 10px 0', fontWeight: 'bold', fontSize: '14px', color: '#1e293b' }}>Frenos</p>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <button type="button" style={{ flex: 1, padding: '10px', backgroundColor: '#064e3b', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Está bien</button>
-                  <button type="button" style={{ flex: 1, padding: '10px', backgroundColor: '#fff', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Tiene falla</button>
-                </div>
-              </div>
-
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#334155', marginBottom: '6px' }}>Observaciones (opcional)</label>
-                <textarea 
-                  rows="3" 
-                  value={observacionesChecklist} 
-                  onChange={(e) => setObservacionesChecklist(e.target.value)} 
-                  placeholder="Observaciones..."
-                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px' }}
-                />
-              </div>
-
               <button 
                 type="submit" 
                 disabled={enviandoChecklist}
-                style={{ 
-                  width: '100%', 
-                  padding: '14px', 
-                  backgroundColor: '#064e3b', 
-                  color: '#fff', 
-                  border: 'none', 
-                  borderRadius: '8px', 
-                  fontSize: '16px', 
-                  fontWeight: 'bold', 
-                  cursor: 'pointer' 
-                }}
+                style={{ width: '100%', padding: '14px', backgroundColor: '#064e3b', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}
               >
                 {enviandoChecklist ? 'Enviando...' : 'Enviar Checklist'}
               </button>
@@ -547,7 +604,7 @@ export default function Panel({ email }) {
                     >
                       {flotaVehiculos.map((v, idx) => (
                         <option key={idx} value={v.dominio} disabled={v.enMantenimiento}>
-                          {v.dominio} - {v.modelo} ({v.estado} {v.enMantenimiento ? ' [En Taller]' : ''})
+                          {v.dominio} - {v.modelo}
                         </option>
                       ))}
                     </select>
@@ -557,25 +614,14 @@ export default function Panel({ email }) {
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span style={{ 
-                    backgroundColor: '#0f172a', 
-                    color: '#ffffff', 
-                    fontFamily: 'sans-serif', 
-                    fontSize: '13px', 
-                    fontWeight: 'bold', 
-                    padding: '5px 10px', 
-                    borderRadius: '6px',
-                    letterSpacing: '0.5px'
-                  }}>
+                  <span style={{ backgroundColor: '#0f172a', color: '#ffffff', fontFamily: 'sans-serif', fontSize: '13px', fontWeight: 'bold', padding: '5px 10px', borderRadius: '6px' }}>
                     {vehiculoSeleccionado}
                   </span>
                   <div>
                     <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, color: '#1e293b' }}>
                       {esChofer ? 'Juan Pérez' : choferSeleccionado}
                     </h2>
-                    <span style={{ fontSize: '12px', color: '#64748b' }}>
-                      Transporte: <strong>{vehiculoActualObj?.modelo || 'IVECO Daily'}</strong>
-                    </span>
+                    <span style={{ fontSize: '12px', color: '#64748b' }}>Transporte Asignado</span>
                   </div>
                 </div>
                 
@@ -593,19 +639,7 @@ export default function Panel({ email }) {
                       🗑️ Archivar Entregados (Limpiar Ruta)
                     </button>
                   )}
-
-                  <div style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', color: '#334155', fontWeight: 'bold' }}>
-                    Km Inicial: {vehiculoActualObj?.km || 124500} km | Estado: <span style={{ color: vehiculoActualObj?.estado === 'En Viaje' ? '#d97706' : '#16a34a' }}>{vehiculoActualObj?.estado}</span>
-                  </div>
                 </div>
-              </div>
-
-              <div style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <span style={{ fontSize: '13px', color: '#1e40af', fontWeight: 'bold' }}>📍 Recorrido Estimado de la Ruta:</span>
-                  <p style={{ margin: '2px 0 0 0', fontSize: '18px', fontWeight: 'bold', color: '#1e3a8a' }}>{kmTotalRuta || 830} KM Total</p>
-                </div>
-                <span style={{ fontSize: '12px', color: '#2563eb' }}>Centro de Distribución Salta</span>
               </div>
 
               <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '16px', marginBottom: '16px' }}>
@@ -631,28 +665,16 @@ export default function Panel({ email }) {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                           <strong style={{ fontSize: '15px' }}>#{p.id} - {p.cliente || p.Cliente || 'Cliente'}</strong> ({p.provincia || 'Salta'})
                           
-                          {/* Botón de Teléfono (Llamar / Contactar) */}
+                          {/* Botón Teléfono */}
                           <a 
                             href={`tel:${telefonoCliente}`} 
-                            title={`Llamar a ${p.cliente || 'cliente'} (${telefonoCliente})`}
-                            style={{ 
-                              display: 'inline-flex', 
-                              alignItems: 'center', 
-                              justifyContent: 'center', 
-                              width: '28px', 
-                              height: '28px', 
-                              backgroundColor: '#dcfce7', 
-                              color: '#15803d', 
-                              borderRadius: '50%', 
-                              textDecoration: 'none',
-                              fontSize: '14px',
-                              boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
-                            }}
+                            title={`Llamar (${telefonoCliente})`}
+                            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', backgroundColor: '#dcfce7', color: '#15803d', borderRadius: '50%', textDecoration: 'none', fontSize: '14px' }}
                           >
                             📞
                           </a>
 
-                          {/* Botón de Basura (Quitar de la ruta activa) */}
+                          {/* Botón Basura */}
                           {!esChofer && (
                             <button 
                               onClick={() => {
@@ -660,21 +682,8 @@ export default function Panel({ email }) {
                                   setPedidosArchivadosRuta([...pedidosArchivadosRuta, p.id]);
                                 }
                               }}
-                              title="Quitar pedido de la ruta"
-                              style={{ 
-                                display: 'inline-flex', 
-                                alignItems: 'center', 
-                                justifyContent: 'center', 
-                                width: '28px', 
-                                height: '28px', 
-                                backgroundColor: '#fee2e2', 
-                                color: '#b91c1c', 
-                                border: 'none', 
-                                borderRadius: '50%', 
-                                cursor: 'pointer',
-                                fontSize: '14px',
-                                boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
-                              }}
+                              title="Quitar pedido"
+                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', backgroundColor: '#fee2e2', color: '#b91c1c', border: 'none', borderRadius: '50%', cursor: 'pointer', fontSize: '14px' }}
                             >
                               🗑️
                             </button>
@@ -682,13 +691,9 @@ export default function Panel({ email }) {
                         </div>
 
                         📍 Dirección: <strong>{p.direccion || p.Direccion}</strong> | 📦 Bultos: <strong>{p.bultos || 1}</strong>
-                        <br/>
-                        <span style={{ fontSize: '12px', color: '#475569' }}>
-                          Tipo de Recorrido: <strong>{esOtraProvincia ? 'Interurbano / Otra Provincia (Pide KM por parada)' : 'Local Salta Capital'}</strong>
-                        </span>
                         <br/>Estado: <strong style={{ 
-                          color: p.estado_entrega === 'Entregado' ? '#166534' : p.estado_entrega === 'Pendiente' ? '#854d0e' : '#991b1b',
-                          backgroundColor: p.estado_entrega === 'Entregado' ? '#dcfce7' : p.estado_entrega === 'Pendiente' ? '#fef9c3' : '#fee2e2',
+                          color: p.estado_entrega === 'Entregado' ? '#166534' : '#854d0e',
+                          backgroundColor: p.estado_entrega === 'Entregado' ? '#dcfce7' : '#fef9c3',
                           padding: '2px 6px', borderRadius: '4px', fontSize: '12px'
                         }}>{p.estado_entrega || 'Pendiente'}</strong>
                       </div>
@@ -725,17 +730,6 @@ export default function Panel({ email }) {
                   </div>
                 )}
               </div>
-
-              {!esChofer && (
-                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                  <button onClick={optimizarRutaOrdenada} style={{ padding: '10px 20px', backgroundColor: '#facc15', color: '#713f12', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}>
-                    ⚡ Optimizar Ruta y Calcular KM Totales
-                  </button>
-                  <button style={{ padding: '10px 20px', backgroundColor: '#064e3b', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}>
-                    Enviar Ruta por WhatsApp
-                  </button>
-                </div>
-              )}
             </div>
           )
         )}
@@ -781,19 +775,15 @@ export default function Panel({ email }) {
                       <td style={{ padding: '10px' }}>
                         <span style={{ 
                           padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold',
-                          backgroundColor: p.estado_entrega === 'Entregado' ? '#dcfce7' : p.estado_entrega === 'Pendiente' ? '#fef9c3' : '#fee2e2',
-                          color: p.estado_entrega === 'Entregado' ? '#166534' : p.estado_entrega === 'Pendiente' ? '#854d0e' : '#991b1b'
+                          backgroundColor: p.estado_entrega === 'Entregado' ? '#dcfce7' : '#fef9c3',
+                          color: p.estado_entrega === 'Entregado' ? '#166534' : '#854d0e'
                         }}>
                           {p.estado_entrega || 'Pendiente'}
                         </span>
                       </td>
                       <td style={{ padding: '10px', fontWeight: 'bold', color: '#15803d' }}>${p.monto_total_cobrado || 0}</td>
-                      <td style={{ padding: '10px', fontWeight: 'bold', backgroundColor: '#fff5f5', color: '#b91c1c' }}>
-                        ${p.gasto_total || 0}
-                      </td>
-                      <td style={{ padding: '10px', fontWeight: 'bold', backgroundColor: '#f0f9ff', color: '#0369a1' }}>
-                        {p.km_recorridos_pedido || p.kmDesdeCD || 0} KM
-                      </td>
+                      <td style={{ padding: '10px', fontWeight: 'bold', backgroundColor: '#fff5f5', color: '#b91c1c' }}>${p.gasto_total || 0}</td>
+                      <td style={{ padding: '10px', fontWeight: 'bold', backgroundColor: '#f0f9ff', color: '#0369a1' }}>{p.km_recorridos_pedido || p.kmDesdeCD || 0} KM</td>
                     </tr>
                   ))}
                 </tbody>
@@ -802,179 +792,170 @@ export default function Panel({ email }) {
           </div>
         )}
 
-        {/* PASO 4: PESTAÑA DE FLOTA Y PERSONAL */}
+        {/* PESTAÑA 3: FLOTA Y PERSONAL */}
         {pestanaActiva === 'flotaPersonal' && !esChofer && (
           <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
             <h3 style={{ margin: '0 0 20px 0', fontSize: '20px', fontWeight: 'bold', color: '#0f172a' }}>
               🏢 Administración de Flota y Personal (Choferes y Ayudantes)
             </h3>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-              
-              {/* FORMULARIO PERSONAL */}
-              <div style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                <h4 style={{ margin: '0 0 15px 0', color: '#064e3b', fontSize: '16px' }}>➕ Registrar Nuevo Personal</h4>
-                <form onSubmit={agregarPersonal}>
-                  <div style={{ marginBottom: '12px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Nombre y Apellido:</label>
-                    <input 
-                      type="text" 
-                      placeholder="Ej: Marcos Ruiz" 
-                      value={nuevoNombrePersonal} 
-                      onChange={(e) => setNuevoNombrePersonal(e.target.value)} 
-                      style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                      required 
-                    />
-                  </div>
-
-                  <div style={{ marginBottom: '12px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Clasificación / Rol:</label>
-                    <select 
-                      value={nuevoRolPersonal} 
-                      onChange={(e) => setNuevoRolPersonal(e.target.value)} 
-                      style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#fff' }}
-                    >
-                      <option value="Chofer">Chofer</option>
-                      <option value="Ayudante">Ayudante</option>
-                    </select>
-                  </div>
-
-                  <div style={{ marginBottom: '12px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Correo Electrónico:</label>
-                    <input 
-                      type="email" 
-                      placeholder="correo@dmmaestro.com" 
-                      value={nuevoEmailPersonal} 
-                      onChange={(e) => setNuevoEmailPersonal(e.target.value)} 
-                      style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
-                    />
-                  </div>
-
-                  <div style={{ marginBottom: '15px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Teléfono / Celular:</label>
-                    <input 
-                      type="text" 
-                      placeholder="387..." 
-                      value={nuevoTelPersonal} 
-                      onChange={(e) => setNuevoTelPersonal(e.target.value)} 
-                      style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
-                    />
-                  </div>
-
-                  <button type="submit" style={{ width: '100%', padding: '10px', backgroundColor: '#047857', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
-                    Guardar Personal
-                  </button>
-                </form>
-              </div>
-
-              {/* FORMULARIO VEHÍCULO */}
-              <div style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                <h4 style={{ margin: '0 0 15px 0', color: '#064e3b', fontSize: '16px' }}>🚛 Registrar Nuevo Vehículo (Flota)</h4>
-                <form onSubmit={agregarVehiculo}>
-                  <div style={{ marginBottom: '12px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Patente / Dominio:</label>
-                    <input 
-                      type="text" 
-                      placeholder="AE123ZZ" 
-                      value={nuevoDominioVehiculo} 
-                      onChange={(e) => setNuevoDominioVehiculo(e.target.value)} 
-                      style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', textTransform: 'uppercase' }}
-                      required 
-                    />
-                  </div>
-
-                  <div style={{ marginBottom: '12px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Modelo / Tipo:</label>
-                    <input 
-                      type="text" 
-                      placeholder="Mercedes Benz Sprinter" 
-                      value={nuevoModeloVehiculo} 
-                      onChange={(e) => setNuevoModeloVehiculo(e.target.value)} 
-                      style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                      required 
-                    />
-                  </div>
-
-                  <div style={{ marginBottom: '25px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Kilometraje Inicial:</label>
-                    <input 
-                      type="number" 
-                      placeholder="0" 
-                      value={nuevoKmVehiculo} 
-                      onChange={(e) => setNuevoKmVehiculo(e.target.value)} 
-                      style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
-                    />
-                  </div>
-
-                  <button type="submit" style={{ width: '100%', padding: '10px', backgroundColor: '#0284c7', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
-                    Añadir a la Flota
-                  </button>
-                </form>
-              </div>
-
-            </div>
-
-            {/* TABLAS LISTADOS */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
-              
-              <div>
-                <h4 style={{ margin: '0 0 10px 0', color: '#1e293b' }}>👥 Plantel Registrado (Choferes y Ayudantes)</h4>
-                <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
-                    <thead>
-                      <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
-                        <th style={{ padding: '8px' }}>Nombre</th>
-                        <th style={{ padding: '8px' }}>Rol</th>
-                        <th style={{ padding: '8px' }}>Contacto</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {personalEmpresa.map((p, idx) => (
-                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '8px', fontWeight: 'bold' }}>{p.nombre}</td>
-                          <td style={{ padding: '8px' }}>
-                            <span style={{ 
-                              padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold',
-                              backgroundColor: p.rol === 'Chofer' ? '#dcfce7' : '#e0f2fe',
-                              color: p.rol === 'Chofer' ? '#166534' : '#0369a1'
-                            }}>
-                              {p.rol}
-                            </span>
-                          </td>
-                          <td style={{ padding: '8px', color: '#64748b' }}>{p.telefono}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+              <div style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                <h4 style={{ margin: '0 0 15px 0', color: '#064e3b', fontSize: '16px' }}>👥 Plantel Registrado</h4>
+                <ul>
+                  {personalEmpresa.map((p, i) => (
+                    <li key={i}>{p.nombre} - {p.rol} ({p.telefono})</li>
+                  ))}
+                </ul>
               </div>
-
-              <div>
-                <h4 style={{ margin: '0 0 10px 0', color: '#1e293b' }}>🚛 Vehículos de la Flota</h4>
-                <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
-                    <thead>
-                      <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
-                        <th style={{ padding: '8px' }}>Patente</th>
-                        <th style={{ padding: '8px' }}>Modelo</th>
-                        <th style={{ padding: '8px' }}>Km Actual</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {flotaVehiculos.map((v, idx) => (
-                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '8px', fontWeight: 'bold', fontFamily: 'monospace' }}>{v.dominio}</td>
-                          <td style={{ padding: '8px' }}>{v.modelo}</td>
-                          <td style={{ padding: '8px', color: '#0284c7', fontWeight: 'bold' }}>{v.km} km</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+              <div style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                <h4 style={{ margin: '0 0 15px 0', color: '#064e3b', fontSize: '16px' }}>🚛 Vehículos Activos</h4>
+                <ul>
+                  {flotaVehiculos.map((v, i) => (
+                    <li key={i}>{v.dominio} - {v.modelo} ({v.km} km)</li>
+                  ))}
+                </ul>
               </div>
+            </div>
+          </div>
+        )}
 
+        {/* NUEVA PESTAÑA 4: MANTENIMIENTO DE FLOTA Y ALERTAS */}
+        {pestanaActiva === 'mantenimientoFlota' && !esChofer && (
+          <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '20px', fontWeight: 'bold', color: '#0f172a' }}>
+              🛠️ Control de Mantenimiento Preventivo de Flota
+            </h3>
+            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px' }}>
+              Monitoreo automático de kilometrajes anteriores, actuales y alertas cuando falten 2.500 km o menos para el service.
+            </p>
+
+            {/* Formulario de registro / actualización */}
+            <div style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '25px' }}>
+              <h4 style={{ margin: '0 0 15px 0', color: '#b45309', fontSize: '16px' }}>📝 Registrar / Actualizar Kilometraje o Service</h4>
+              <form onSubmit={guardarVehiculoMantenimiento} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Patente / Dominio:</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ej: NEB732" 
+                    value={nuevaPatenteMto} 
+                    onChange={(e) => setNuevaPatenteMto(e.target.value.toUpperCase())} 
+                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                    required 
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Modelo del Vehículo:</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ej: IVECO Daily" 
+                    value={nuevoModeloMto} 
+                    onChange={(e) => setNuevoModeloMto(e.target.value)} 
+                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Km Actual:</label>
+                  <input 
+                    type="number" 
+                    placeholder="Ej: 124500" 
+                    value={nuevoKmActualMto} 
+                    onChange={(e) => setNuevoKmActualMto(e.target.value)} 
+                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                    required 
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Frecuencia Mto (Km):</label>
+                  <input 
+                    type="number" 
+                    value={nuevaFrecuenciaMto} 
+                    onChange={(e) => setNuevaFrecuenciaMto(e.target.value)} 
+                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Km Último Service:</label>
+                  <input 
+                    type="number" 
+                    placeholder="Ej: 115000" 
+                    value={nuevoUltimoMtoKm} 
+                    onChange={(e) => setNuevoUltimoMtoKm(e.target.value)} 
+                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Tipo de Mantenimiento:</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ej: Service de aceite y filtros" 
+                    value={nuevoTipoMto} 
+                    onChange={(e) => setNuevoTipoMto(e.target.value)} 
+                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
+                  />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                  <button type="submit" style={{ width: '100%', padding: '10px', backgroundColor: '#b45309', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
+                    Guardar / Actualizar
+                  </button>
+                </div>
+              </form>
             </div>
 
+            {/* Tabla de monitoreo y alertas preventivas */}
+            <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#334155' }}>
+                    <th style={{ padding: '10px' }}>Patente</th>
+                    <th style={{ padding: '10px' }}>Modelo</th>
+                    <th style={{ padding: '10px' }}>Km Anterior</th>
+                    <th style={{ padding: '10px' }}>Km Actual</th>
+                    <th style={{ padding: '10px' }}>Próximo Service (Km)</th>
+                    <th style={{ padding: '10px' }}>Mantenimiento a Realizar</th>
+                    <th style={{ padding: '10px' }}>Estado / Alerta</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {flotaMantenimientoBD.map((v, idx) => {
+                    const kmActual = Number(v.km_actual || 0);
+                    const ultimoMto = Number(v.ultimo_mantenimiento_km || 0);
+                    const frecuencia = Number(v.frecuencia_mantenimiento || 15000);
+                    const proximoServiceKm = ultimoMto + frecuencia;
+                    const kmRestantes = proximoServiceKm - kmActual;
+                    
+                    const enAlerta = kmRestantes <= 2500;
+                    const vencido = kmRestantes <= 0;
+
+                    return (
+                      <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: vencido ? '#fee2e2' : enAlerta ? '#fef9c3' : '#fff' }}>
+                        <td style={{ padding: '10px', fontWeight: 'bold', fontFamily: 'monospace' }}>{v.patente}</td>
+                        <td style={{ padding: '10px' }}>{v.modelo}</td>
+                        <td style={{ padding: '10px', color: '#64748b' }}>{v.km_anterior || 0} km</td>
+                        <td style={{ padding: '10px', fontWeight: 'bold', color: '#0284c7' }}>{kmActual} km</td>
+                        <td style={{ padding: '10px', fontWeight: 'bold' }}>{proximoServiceKm} km</td>
+                        <td style={{ padding: '10px' }}>{v.tipo_mantenimiento || 'Mantenimiento General'}</td>
+                        <td style={{ padding: '10px' }}>
+                          {vencido ? (
+                            <span style={{ backgroundColor: '#b91c1c', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
+                              ⚠️ ¡MANTENIMIENTO VENCIDO!
+                            </span>
+                          ) : enAlerta ? (
+                            <span style={{ backgroundColor: '#ca8a04', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
+                              🚨 ALERTA: Faltan {kmRestantes} km
+                            </span>
+                          ) : (
+                            <span style={{ backgroundColor: '#166534', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
+                              ✅ En Vigencia (Faltan {kmRestantes} km)
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -992,41 +973,9 @@ export default function Panel({ email }) {
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>Estado de Entrega:</label>
             <select value={estadoEntrega} onChange={(e) => setEstadoEntrega(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '12px', fontSize: '14px' }}>
               <option value="Entregado">Entregado</option>
-              <option value="Pendiente">Pendiente (Solo Cobranza de Saldo)</option>
+              <option value="Pendiente">Pendiente</option>
               <option value="No entregado">No entregado</option>
             </select>
-
-            {(pedidoACerrar?.provincia || 'Salta').toLowerCase() !== 'salta' && (
-              <div style={{ backgroundColor: '#eff6ff', padding: '12px', borderRadius: '8px', border: '1px solid #bfdbfe', marginBottom: '15px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#1e40af', marginBottom: '4px' }}>
-                  KM Recorridos en esta Parada Interurbana / Provincia:
-                </label>
-                <input 
-                  type="number" 
-                  placeholder="Ej: 310" 
-                  value={kmEntregaInterurbana} 
-                  onChange={(e) => setKmEntregaInterurbana(e.target.value)} 
-                  style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #93c5fd', fontSize: '14px' }} 
-                />
-              </div>
-            )}
-
-            <h4 style={{ margin: '10px 0 8px 0', fontSize: '14px', color: '#047857' }}>💵 Desglose de Cobro Recibido:</h4>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '15px' }}>
-              <input type="number" placeholder="Efectivo $" value={montoEfectivo} onChange={(e) => setMontoEfectivo(e.target.value)} style={{ padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
-              <input type="number" placeholder="Transferencia $" value={montoTransferencia} onChange={(e) => setMontoTransferencia(e.target.value)} style={{ padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
-              <input type="number" placeholder="Cheques $" value={montoCheque} onChange={(e) => setMontoCheque(e.target.value)} style={{ padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
-            </div>
-
-            <h4 style={{ margin: '10px 0 8px 0', fontSize: '14px', color: '#b91c1c' }}>🥐 Registro de Gastos e Itinerario:</h4>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '15px' }}>
-              <input type="number" placeholder="Desayuno $" value={gastos.desayuno} onChange={(e) => setGastos({ ...gastos, desayuno: e.target.value })} style={{ padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
-              <input type="number" placeholder="Almuerzo $" value={gastos.almuerzo} onChange={(e) => setGastos({ ...gastos, almuerzo: e.target.value })} style={{ padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
-              <input type="number" placeholder="Merienda $" value={gastos.merienda} onChange={(e) => setGastos({ ...gastos, merienda: e.target.value })} style={{ padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
-              <input type="number" placeholder="Cena $" value={gastos.cena} onChange={(e) => setGastos({ ...gastos, cena: e.target.value })} style={{ padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
-              <input type="number" placeholder="Hotel / Hospedaje $" value={gastos.hotel} onChange={(e) => setGastos({ ...gastos, hotel: e.target.value })} style={{ padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
-              <input type="number" placeholder="Otros Gastos $" value={gastos.otros} onChange={(e) => setGastos({ ...gastos, otros: e.target.value })} style={{ padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
-            </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '15px' }}>
               <button onClick={() => setModalCierreAbierto(false)} style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}>Cancelar</button>
@@ -1042,11 +991,11 @@ export default function Panel({ email }) {
           <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '12px', maxWidth: '450px', width: '90%' }}>
             <h3 style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: 'bold' }}>🏁 Cierre Final del Viaje</h3>
             <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '15px' }}>
-              Ingresa el kilometraje final marcado por el vehículo al regresar al Centro de Distribución.
+              Ingresa el kilometraje final del vehículo. Esto actualizará automáticamente el acumulado de la flota.
             </p>
 
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px', color: '#1e293b' }}>
-              Kilometraje Final del Vehículo (KM):
+              Kilometraje Final (KM):
             </label>
             <input 
               type="number" 
@@ -1058,7 +1007,7 @@ export default function Panel({ email }) {
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button onClick={() => setModalCierreFinalViaje(false)} style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={confirmarCierreFinalViaje} style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', background: '#064e3b', color: '#fff', fontWeight: 'bold', cursor: 'pointer' }}>Finalizar y Liberar Vehículo</button>
+              <button onClick={confirmarCierreFinalViaje} style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', background: '#064e3b', color: '#fff', fontWeight: 'bold', cursor: 'pointer' }}>Finalizar y Actualizar Km</button>
             </div>
           </div>
         </div>
