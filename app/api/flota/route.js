@@ -28,19 +28,23 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const {
-      patente,
-      modelo,
-      tipo_vehiculo,
-      km_actual,
-      frecuencia_mto,
-      km_ultimo_service,
-      tipo_mantenimiento,
-      mantenimiento_a_realizar,
-      costo_mantenimiento,
-      novedades_chofer,
-      es_cierre_chofer
-    } = body;
+    
+    // Capturamos los campos contemplando posibles variaciones de nombres desde el frontend
+    const patente = body.patente || body.Dominio || '';
+    const modelo = body.modelo || body.Modelo || '';
+    const tipo_vehiculo = body.tipo_vehiculo || body.tipoVehiculo || 'Furgón';
+    const km_actual = Number(body.km_actual || body.kmActual || body.KmActual || 0);
+    const frecuencia_mto = Number(body.frecuencia_mto || body.frecuenciaMto || 15000);
+    const km_ultimo_service = Number(body.km_ultimo_service || body.kmUltimoService || 0);
+    const tipo_mantenimiento = body.tipo_mantenimiento || body.tipoMantenimiento || '';
+    const mantenimiento_a_realizar = body.mantenimiento_a_realizar || body.mantenimientoARealizar || '';
+    const costo_mantenimiento = Number(body.costo_mantenimiento || body.costoMantenimiento || 0);
+    const novedades_chofer = body.novedades_chofer || body.novedadesChofer || 'Sin novedades';
+    const es_cierre_chofer = body.es_cierre_chofer || false;
+
+    if (!patente) {
+      return NextResponse.json({ error: 'La patente es obligatoria' }, { status: 400 });
+    }
 
     const patenteUpper = patente.toUpperCase();
     const client = await pool.connect();
@@ -58,7 +62,7 @@ export async function POST(request) {
               actualizado_at = CURRENT_TIMESTAMP
           WHERE patente = $4
           RETURNING *;
-        `, [kmAnterior, km_actual, novedades_chofer || 'Sin novedades', patenteUpper]);
+        `, [kmAnterior, km_actual, novedades_chofer, patenteUpper]);
 
         return NextResponse.json({ success: true, data: result.rows[0] });
       }
@@ -83,8 +87,8 @@ export async function POST(request) {
           actualizado_at = CURRENT_TIMESTAMP
         RETURNING *;
       `, [
-        patenteUpper, modelo, tipo_vehiculo || 'Furgón', km_actual, frecuencia_mto, 
-        km_ultimo_service, tipo_mantenimiento, mantenimiento_a_realizar, costo_mantenimiento || 0
+        patenteUpper, modelo, tipo_vehiculo, km_actual, frecuencia_mto, 
+        km_ultimo_service, tipo_mantenimiento, mantenimiento_a_realizar, costo_mantenimiento
       ]);
 
       return NextResponse.json({ success: true, data: result.rows[0] });
@@ -92,6 +96,7 @@ export async function POST(request) {
       client.release();
     }
   } catch (error) {
+    console.error('Error en POST /api/flota:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
