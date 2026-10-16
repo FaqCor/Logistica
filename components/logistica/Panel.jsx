@@ -28,7 +28,7 @@ export default function Panel({ email }) {
   // Estado local para ocultar entregados en la vista de rutas
   const [pedidosArchivadosRuta, setPedidosArchivadosRuta] = useState([]);
 
-  // --- ESTADOS PARA MANTENIMIENTO DE FLOTA ---
+  // --- ESTADOS PARA MANTENIMIENTO DE FLOTA Y ACTUALIZACIÓN RÁPIDA DE KM ---
   const [flotaMantenimientoBD, setFlotaMantenimientoBD] = useState([]);
   const [nuevaPatenteMto, setNuevaPatenteMto] = useState('');
   const [nuevoModeloMto, setNuevoModeloMto] = useState('');
@@ -37,6 +37,10 @@ export default function Panel({ email }) {
   const [nuevoUltimoMtoKm, setNuevoUltimoMtoKm] = useState('');
   const [nuevoTipoMto, setNuevoTipoMto] = useState('Service completo de aceite y filtros');
   const [nuevoCostoMto, setNuevoCostoMto] = useState('');
+
+  // ESTADOS PESTAÑA RÁPIDA DE ACTUALIZAR KM
+  const [patenteRapidaKm, setPatenteRapidaKm] = useState('');
+  const [valorRapidoKm, setValorRapidoKm] = useState('');
 
   // --- ESTADOS PARA CARNETS DE CHOFERES ---
   const [choferesCarnetsBD, setChoferesCarnetsBD] = useState([]);
@@ -233,6 +237,52 @@ export default function Panel({ email }) {
     }
   };
 
+  // NUEVA FUNCIÓN: ACTUALIZACIÓN RÁPIDA DE KM PARA CUALQUIER TRANSPORTE
+  const actualizarKmRapido = async (e) => {
+    e.preventDefault();
+    if (!patenteRapidaKm || !valorRapidoKm) {
+      alert('Por favor, selecciona una patente e ingresa el nuevo kilometraje.');
+      return;
+    }
+
+    const kmNumerico = Number(valorRapidoKm);
+    const patenteUpper = patenteRapidaKm.toUpperCase();
+
+    // Buscar datos existentes para mantener su modelo y configuración
+    const vehiculoExistente = flotaMantenimientoBD.find(v => v.patente === patenteUpper);
+
+    try {
+      const res = await fetch('/api/flota', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patente: patenteUpper,
+          modelo: vehiculoExistente?.modelo || 'Transporte Flota',
+          tipo_vehiculo: vehiculoExistente?.tipo_vehiculo || 'Furgón',
+          km_actual: kmNumerico,
+          frecuencia_mto: vehiculoExistente?.frecuencia_mto || 15000,
+          km_ultimo_service: vehiculoExistente?.km_ultimo_service || 0,
+          tipo_mantenimiento: vehiculoExistente?.tipo_mantenimiento || 'Mantenimiento General',
+          costo_mantenimiento: vehiculoExistente?.costo_mantenimiento || 0
+        })
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        // Actualizar estados locales para reflejo instantáneo
+        setFlotaVehiculos(prev => prev.map(v => v.dominio === patenteUpper ? { ...v, km: kmNumerico } : v));
+        alert(`¡Kilometraje de la patente ${patenteUpper} actualizado a ${kmNumerico} KM en todas las pestañas!`);
+        setValorRapidoKm('');
+        cargarDatosBD(); // Sincroniza con la base de datos
+      } else {
+        alert('Error: ' + (data.error || 'No se pudo actualizar el kilometraje'));
+      }
+    } catch (error) {
+      alert('Error de conexión al actualizar kilometraje.');
+    }
+  };
+
   // Guardar Carnets de Choferes
   const guardarChoferCarnet = async (e) => {
     e.preventDefault();
@@ -274,7 +324,6 @@ export default function Panel({ email }) {
     }
   };
 
-  // Función para cargar los datos del chofer en el formulario y corregir fechas
   const editarChoferCarnet = (chofer) => {
     setNombreChoferCarnet(chofer.nombre_chofer || '');
     setDniChoferCarnet(chofer.dni || '');
@@ -299,10 +348,35 @@ export default function Panel({ email }) {
       const resFlota = await fetch('/api/flota', { cache: 'no-store' });
       if (resFlota.ok) {
         const dataFlota = await resFlota.json();
+        let listaFlota = [];
         if (Array.isArray(dataFlota)) {
-          setFlotaMantenimientoBD(dataFlota);
+          listaFlota = dataFlota;
         } else if (dataFlota.success && Array.isArray(dataFlota.flota)) {
-          setFlotaMantenimientoBD(dataFlota.flota);
+          listaFlota = dataFlota.flota;
+        }
+        
+        setFlotaMantenimientoBD(listaFlota);
+
+        // Sincronizar automáticamente la lista local de flotaVehiculos con los KM de la BD
+        if (listaFlota.length > 0) {
+          setFlotaVehiculos(prev => {
+            const combinados = [...prev];
+            listaFlota.forEach(bdVeh => {
+              const idx = combinados.findIndex(v => v.dominio === bdVeh.patente);
+              if (idx !== -1) {
+                combinados[idx].km = Number(bdVeh.km_actual || combinados[idx].km);
+              } else {
+                combinados.push({
+                  dominio: bdVeh.patente,
+                  modelo: bdVeh.modelo || 'Transporte Flota',
+                  km: Number(bdVeh.km_actual || 0),
+                  estado: 'Disponible',
+                  enMantenimiento: false
+                });
+              }
+            });
+            return combinados;
+          });
         }
       }
 
@@ -331,6 +405,16 @@ export default function Panel({ email }) {
       return () => clearInterval(interval);
     }
   }, [pestanaActiva, esChofer]);
+
+  // Si cambia la patente seleccionada en la pestaña rápida de KM, sugerir su KM actual
+  useEffect(() => {
+    if (patenteRapidaKm) {
+      const veh = flotaVehiculos.find(v => v.dominio === patenteRapidaKm) || flotaMantenimientoBD.find(v => v.patente === patenteRapidaKm);
+      if (veh) {
+        setValorRapidoKm(veh.km || veh.km_actual || '');
+      }
+    }
+  }, [patenteRapidaKm]);
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
@@ -597,6 +681,12 @@ export default function Panel({ email }) {
     });
   });
 
+  // Lista unificada de todas las patentes únicas
+  const listaTodasPatentes = Array.from(new Set([
+    ...flotaVehiculos.map(v => v.dominio),
+    ...flotaMantenimientoBD.map(v => v.patente)
+  ])).filter(Boolean);
+
   return (
     <div style={{ backgroundColor: '#f1f5f9', minHeight: '100vh', fontFamily: 'sans-serif' }}>
       
@@ -660,7 +750,7 @@ export default function Panel({ email }) {
       {/* CONTENIDO PRINCIPAL */}
       <div style={{ padding: '24px', maxWidth: '1100px', margin: '0 auto' }}>
         
-        {/* TÍTULO Y BOTONERA DE NAVEGACIÓN (IMPORTAR EXCEL ARRIBA) */}
+        {/* TÍTULO Y BOTONERA DE NAVEGACIÓN */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
           <div>
             <h1 style={{ fontSize: '24px', fontWeight: 'bold', margin: 0, color: '#0f172a' }}>
@@ -675,7 +765,6 @@ export default function Panel({ email }) {
           
           {!esChofer && (
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-              {/* BOTÓN IMPORTAR EXCEL MÁS ARRIBA */}
               <button 
                 onClick={() => document.getElementById('inputExcelVentas').click()}
                 style={{ backgroundColor: '#047857', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
@@ -712,12 +801,19 @@ export default function Panel({ email }) {
                 🛠️ Mantenimiento
               </button>
 
-              {/* NUEVA PESTAÑA AL LADO DE MANTENIMIENTO */}
               <button 
                 onClick={() => { setPestanaActiva('choferesCarnets'); cargarDatosBD(); }}
                 style={{ backgroundColor: pestanaActiva === 'choferesCarnets' ? '#1e293b' : '#0369a1', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
               >
                 🪪 Carnets Choferes
+              </button>
+
+              {/* NUEVA PESTAÑA: ACTUALIZAR KM */}
+              <button 
+                onClick={() => { setPestanaActiva('actualizarKm'); cargarDatosBD(); }}
+                style={{ backgroundColor: pestanaActiva === 'actualizarKm' ? '#1e293b' : '#d97706', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
+              >
+                ⏱️ Actualizar KM
               </button>
             </div>
           )}
@@ -727,7 +823,6 @@ export default function Panel({ email }) {
         {!esChofer && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '15px', marginBottom: '24px' }}>
             
-            {/* Widget 1: Vehículos con mayores costos */}
             <div style={{ backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
               <h4 style={{ margin: '0 0 10px 0', fontSize: '15px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 💰 Top Vehículos con Mayores Costos
@@ -745,7 +840,6 @@ export default function Panel({ email }) {
               )}
             </div>
 
-            {/* Widget 2: Alertas documentación choferes */}
             <div style={{ backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
               <h4 style={{ margin: '0 0 10px 0', fontSize: '15px', color: '#991b1b', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 ⚠️ Alertas de Vencimiento de Carnets ({choferesEnAlerta.length})
@@ -826,7 +920,7 @@ export default function Panel({ email }) {
                     >
                       {flotaVehiculos.map((v, idx) => (
                         <option key={idx} value={v.dominio} disabled={v.enMantenimiento}>
-                          {v.dominio} - {v.modelo}
+                          {v.dominio} - {v.modelo} ({v.km} km)
                         </option>
                       ))}
                     </select>
@@ -864,7 +958,6 @@ export default function Panel({ email }) {
                 </div>
               </div>
 
-              {/* RECORRIDO ESTIMADO */}
               <div style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <span style={{ fontSize: '13px', color: '#1e40af', fontWeight: 'bold' }}>📍 Recorrido Estimado de la Ruta:</span>
@@ -1349,7 +1442,7 @@ export default function Panel({ email }) {
           </div>
         )}
 
-        {/* PESTAÑA 5: CARNETS DE CHOFERES (UBICADA AL LADO DE MANTENIMIENTO) */}
+        {/* PESTAÑA 5: CARNETS DE CHOFERES */}
         {pestanaActiva === 'choferesCarnets' && !esChofer && (
           <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
             <h3 style={{ margin: '0 0 10px 0', fontSize: '20px', fontWeight: 'bold', color: '#0f172a' }}>
@@ -1476,6 +1569,67 @@ export default function Panel({ email }) {
               </table>
             </div>
 
+          </div>
+        )}
+
+        {/* NUEVA PESTAÑA 6: ACTUALIZAR KM DE CUALQUIER TRANSPORTE */}
+        {pestanaActiva === 'actualizarKm' && !esChofer && (
+          <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '20px', fontWeight: 'bold', color: '#0f172a' }}>
+              ⏱️ Actualizar Kilometraje de Transporte
+            </h3>
+            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px' }}>
+              Selecciona cualquier vehículo/patente de la flota e ingresa su nuevo odómetro. La actualización se propagará a todas las demás pestañas automáticamente.
+            </p>
+
+            <div style={{ backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', padding: '20px', maxWidth: '650px' }}>
+              <form onSubmit={actualizarKmRapido}>
+                
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#92400e', marginBottom: '6px' }}>
+                    Seleccionar Vehículo / Patente:
+                  </label>
+                  <select 
+                    value={patenteRapidaKm} 
+                    onChange={(e) => setPatenteRapidaKm(e.target.value)}
+                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', backgroundColor: '#fff', fontWeight: 'bold' }}
+                    required
+                  >
+                    <option value="">-- Selecciona una Patente --</option>
+                    {listaTodasPatentes.map((pat, idx) => {
+                      const obj = flotaVehiculos.find(v => v.dominio === pat) || flotaMantenimientoBD.find(v => v.patente === pat);
+                      const kmActual = obj?.km || obj?.km_actual || 0;
+                      return (
+                        <option key={idx} value={pat}>
+                          🚘 {pat} ({obj?.modelo || 'Transporte'}) - Actual: {kmActual} KM
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#92400e', marginBottom: '6px' }}>
+                    Nuevo Kilometraje (KM):
+                  </label>
+                  <input 
+                    type="number" 
+                    placeholder="Ej: 125000" 
+                    value={valorRapidoKm} 
+                    onChange={(e) => setValorRapidoKm(e.target.value)} 
+                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '15px', fontWeight: 'bold' }}
+                    required 
+                  />
+                </div>
+
+                <button 
+                  type="submit" 
+                  style={{ width: '100%', padding: '12px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer' }}
+                >
+                  ⚡ Actualizar Kilometraje en Todas las Pestañas
+                </button>
+              </form>
+            </div>
           </div>
         )}
 
