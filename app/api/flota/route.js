@@ -3,7 +3,6 @@ import { Pool } from '@neondatabase/serverless';
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-// GET: Obtener todos los vehículos o buscar uno específico por patente
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -16,7 +15,7 @@ export async function GET(request) {
         return NextResponse.json(rows[0] || null);
       }
 
-      const { rows } = await client.query('SELECT * FROM vehiculos ORDER BY patente ASC');
+      const { rows } = await client.query('SELECT * FROM vehiculos ORDER BY costo_mantenimiento DESC, patente ASC');
       return NextResponse.json(rows);
     } finally {
       client.release();
@@ -26,7 +25,6 @@ export async function GET(request) {
   }
 }
 
-// POST: Guardar/Actualizar flota o registrar cierre de viaje del chofer
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -39,6 +37,7 @@ export async function POST(request) {
       km_ultimo_service,
       tipo_mantenimiento,
       mantenimiento_a_realizar,
+      costo_mantenimiento,
       novedades_chofer,
       es_cierre_chofer
     } = body;
@@ -67,9 +66,9 @@ export async function POST(request) {
       const result = await client.query(`
         INSERT INTO vehiculos (
           patente, modelo, tipo_vehiculo, km_actual, frecuencia_mto, 
-          km_ultimo_service, tipo_mantenimiento, mantenimiento_a_realizar, actualizado_at
+          km_ultimo_service, tipo_mantenimiento, mantenimiento_a_realizar, costo_mantenimiento, actualizado_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)
         ON CONFLICT (patente) 
         DO UPDATE SET 
           modelo = EXCLUDED.modelo,
@@ -80,11 +79,12 @@ export async function POST(request) {
           km_ultimo_service = EXCLUDED.km_ultimo_service,
           tipo_mantenimiento = EXCLUDED.tipo_mantenimiento,
           mantenimiento_a_realizar = EXCLUDED.mantenimiento_a_realizar,
+          costo_mantenimiento = EXCLUDED.costo_mantenimiento,
           actualizado_at = CURRENT_TIMESTAMP
         RETURNING *;
       `, [
-        patenteUpper, modelo, tipo_vehiculo, km_actual, frecuencia_mto, 
-        km_ultimo_service, tipo_mantenimiento, mantenimiento_a_realizar
+        patenteUpper, modelo, tipo_vehiculo || 'Furgón', km_actual, frecuencia_mto, 
+        km_ultimo_service, tipo_mantenimiento, mantenimiento_a_realizar, costo_mantenimiento || 0
       ]);
 
       return NextResponse.json({ success: true, data: result.rows[0] });
