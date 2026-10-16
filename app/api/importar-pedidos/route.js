@@ -15,22 +15,30 @@ export async function POST(request) {
     
     try {
       await client.query('BEGIN');
-      
+
+      // Construimos una consulta masiva dinámica para insertar todos de un solo golpe
+      const queryValues = [];
+      const placeholders = [];
+      let index = 1;
+
       for (const p of pedidos) {
-        await client.query(
-          `INSERT INTO pedidos (cliente, direccion, localidad, telefono, detalle, monto, estado) 
-           VALUES ($1, $2, $3, $4, $5, $6, 'Sin asignar')`,
-          [
-            p.Cliente || p.cliente || '',
-            p.Direccion || p.dirección || p.Dirección || '',
-            p.Localidad || p.localidad || 'Salta',
-            String(p.Telefono || p.teléfono || p.Telefono || ''),
-            p.Detalle || p.detalle || p.Pedido || '',
-            Number(p.Monto || p.monto || 0)
-          ]
+        placeholders.push(`($${index++}, $${index++}, $${index++}, $${index++}, $${index++}, $${index++}, 'Sin asignar')`);
+        queryValues.push(
+          p.Cliente || p.cliente || '',
+          p.Direccion || p.dirección || p.Dirección || '',
+          p.Localidad || p.localidad || 'Salta',
+          String(p.Telefono || p.teléfono || p.Teléfono || ''),
+          p.Detalle || p.detalle || p.Pedido || '',
+          Number(p.Monto || p.monto || 0)
         );
       }
-      
+
+      const bulkQuery = `
+        INSERT INTO pedidos (cliente, direccion, localidad, telefono, detalle, monto, estado) 
+        VALUES ${placeholders.join(', ')}
+      `;
+
+      await client.query(bulkQuery, queryValues);
       await client.query('COMMIT');
     } catch (err) {
       await client.query('ROLLBACK');
