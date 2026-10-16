@@ -441,17 +441,31 @@ export default function Panel({ email }) {
   return (
     <div style={{ backgroundColor: '#f1f5f9', minHeight: '100vh', fontFamily: 'sans-serif' }}>
       
-      {/* HEADER VERDE OSCURO */}
-      <div style={{ backgroundColor: '#064e3b', color: '#fff', padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+     {/* HEADER VERDE OSCURO */}
+      <div style={{ 
+        backgroundColor: '#064e3b', 
+        color: '#fff', 
+        padding: '14px 24px', 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        position: 'relative'
+      }}>
+        {/* Lado izquierdo: Fecha */}
         <div>
-          <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0 }}>
-            Hola, {esChofer ? 'Juan' : 'Logística'}
-          </h2>
-          <span style={{ fontSize: '12px', color: '#a7f3d0' }}>
+          <span style={{ fontSize: '13px', color: '#a7f3d0', fontWeight: '500' }}>
             {fechaFormateada}
           </span>
         </div>
 
+        {/* Centro: Área Logística (Más grande y centrado) */}
+        <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', textAlign: 'center' }}>
+          <h1 style={{ fontSize: '22px', fontWeight: 'bold', margin: 0, letterSpacing: '0.5px' }}>
+            Área Logística
+          </h1>
+        </div>
+
+        {/* Lado derecho: Placa de vehículo y botón salir */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{
             backgroundColor: '#ffffff',
