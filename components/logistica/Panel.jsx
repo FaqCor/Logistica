@@ -10,7 +10,6 @@ export default function Panel({ email }) {
   // Estado del checklist
   const [checklistEnviado, setChecklistEnviado] = useState(false);
   const [kmChecklist, setKmChecklist] = useState('54000');
-  const [observacionesChecklist, setObservacionesChecklist] = useState('');
   const [enviandoChecklist, setEnviandoChecklist] = useState(false);
 
   // Fecha actual
@@ -37,6 +36,17 @@ export default function Panel({ email }) {
   const [nuevaFrecuenciaMto, setNuevaFrecuenciaMto] = useState('15000');
   const [nuevoUltimoMtoKm, setNuevoUltimoMtoKm] = useState('');
   const [nuevoTipoMto, setNuevoTipoMto] = useState('Service completo de aceite y filtros');
+  const [nuevoCostoMto, setNuevoCostoMto] = useState('');
+
+  // --- ESTADOS PARA CARNETS DE CHOFERES ---
+  const [choferesCarnetsBD, setChoferesCarnetsBD] = useState([]);
+  const [nombreChoferCarnet, setNombreChoferCarnet] = useState('');
+  const [dniChoferCarnet, setDniChoferCarnet] = useState('');
+  const [telChoferCarnet, setTelChoferCarnet] = useState('');
+  const [vencConducir, setVencConducir] = useState('');
+  const [vencPeligrosas, setVencPeligrosas] = useState('');
+  const [vencGenerales, setVencGenerales] = useState('');
+  const [vencPsicofisico, setVencPsicofisico] = useState('');
 
   // --- ESTADOS PARA PERSONAL Y VEHÍCULOS (FLOTA) ---
   const [personalEmpresa, setPersonalEmpresa] = useState([
@@ -66,7 +76,6 @@ export default function Panel({ email }) {
   const [choferSeleccionado, setChoferSeleccionado] = useState(listaChoferes[0]?.nombre || 'Juan Pérez');
   const [vehiculoSeleccionado, setVehiculoSeleccionado] = useState(flotaVehiculos[0]?.dominio || 'NEB732');
 
-  // Pedidos iniciales
   const pedidosEjemplo = [
     { id: 101, cliente: 'Ferretería El Norte', provincia: 'Salta', localidad: 'General Güemes', direccion: 'Av. San Martín 450', bultos: 12, monto: 185000, kmDesdeCD: 50, estado_entrega: 'Pendiente', monto_total_cobrado: 0, gasto_total: 0 },
     { id: 102, cliente: 'Corralón San Miguel', provincia: 'Tucumán', localidad: 'San Miguel de Tucumán', direccion: 'Av. Kirchner 1200', bultos: 45, monto: 620000, kmDesdeCD: 310, estado_entrega: 'Pendiente', monto_total_cobrado: 0, gasto_total: 0 },
@@ -125,7 +134,7 @@ export default function Panel({ email }) {
     }
   };
 
-  // --- REGISTRAR, ELIMINAR Y VINCULAR VEHÍCULOS CON MANTENIMIENTO ---
+  // --- REGISTRAR VEHÍCULOS ---
   const agregarVehiculo = async (e) => {
     e.preventDefault();
     if (!nuevoDominioVehiculo || !nuevoModeloVehiculo) {
@@ -158,21 +167,23 @@ export default function Panel({ email }) {
         body: JSON.stringify({
           patente: patenteUpper,
           modelo: nuevoModeloVehiculo,
-          kmActual: kmVal,
-          frecuencia: 15000,
-          ultimoKm: 0,
-          tipoMantenimiento: 'Service completo de aceite y filtros'
+          tipo_vehiculo: 'Furgón',
+          km_actual: kmVal,
+          frecuencia_mto: 15000,
+          km_ultimo_service: 0,
+          tipo_mantenimiento: 'Service completo de aceite y filtros',
+          costo_mantenimiento: 0
         })
       });
       cargarDatosBD();
     } catch (err) {
-      console.warn('No se pudo vincular directamente con la BD de mantenimiento.');
+      console.warn('No se pudo vincular directamente con la BD.');
     }
 
     setNuevoDominioVehiculo('');
     setNuevoModeloVehiculo('');
     setNuevoKmVehiculo('');
-    alert(`¡Vehículo patente ${patenteUpper} registrado y vinculado a Mantenimiento!`);
+    alert(`¡Vehículo patente ${patenteUpper} registrado y vinculado!`);
   };
 
   const eliminarVehiculo = (dominio) => {
@@ -181,7 +192,7 @@ export default function Panel({ email }) {
     }
   };
 
-  // Guardar o actualizar mantenimiento directo desde pestaña Mantenimiento
+  // Guardar o actualizar mantenimiento directo
   const guardarVehiculoMantenimiento = async (e) => {
     e.preventDefault();
     if (!nuevaPatenteMto || !nuevoKmActualMto) {
@@ -196,29 +207,74 @@ export default function Panel({ email }) {
         body: JSON.stringify({
           patente: nuevaPatenteMto,
           modelo: nuevoModeloMto || 'Vehículo General',
-          kmActual: nuevoKmActualMto,
-          frecuencia: nuevaFrecuenciaMto,
-          ultimoKm: nuevoUltimoMtoKm || 0,
-          tipoMantenimiento: nuevoTipoMto
+          tipo_vehiculo: 'Furgón',
+          km_actual: Number(nuevoKmActualMto),
+          frecuencia_mto: Number(nuevaFrecuenciaMto) || 15000,
+          km_ultimo_service: Number(nuevoUltimoMtoKm) || 0,
+          tipo_mantenimiento: nuevoTipoMto,
+          mantenimiento_a_realizar: 'Service preventivo programado',
+          costo_mantenimiento: Number(nuevoCostoMto) || 0
         })
       });
       const data = await res.json();
-      if (data.success) {
-        alert(data.message);
+      if (res.ok) {
+        alert('¡Mantenimiento y costos guardados correctamente!');
         setNuevaPatenteMto('');
         setNuevoModeloMto('');
         setNuevoKmActualMto('');
         setNuevoUltimoMtoKm('');
+        setNuevoCostoMto('');
         cargarDatosBD();
       } else {
-        alert('Error: ' + data.error);
+        alert('Error: ' + (data.error || 'No se pudo guardar'));
       }
     } catch (error) {
       alert('Error al conectar con el servidor.');
     }
   };
 
-  // Cargar pedidos y flota desde la BD
+  // Guardar Carnets de Choferes
+  const guardarChoferCarnet = async (e) => {
+    e.preventDefault();
+    if (!nombreChoferCarnet || !dniChoferCarnet) {
+      alert('Por favor, ingresa el nombre y DNI del chofer.');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/chofer/carnets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre_chofer: nombreChoferCarnet,
+          dni: dniChoferCarnet,
+          telefono: telChoferCarnet || 'Sin teléfono',
+          vencimiento_carnet_conducir: vencConducir || null,
+          vencimiento_cargas_peligrosas: vencPeligrosas || null,
+          vencimiento_cargas_generales: vencGenerales || null,
+          vencimiento_psicofisico: vencPsicofisico || null
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert('¡Carnets y documentación del chofer guardados con éxito!');
+        setNombreChoferCarnet('');
+        setDniChoferCarnet('');
+        setTelChoferCarnet('');
+        setVencConducir('');
+        setVencPeligrosas('');
+        setVencGenerales('');
+        setVencPsicofisico('');
+        cargarDatosBD();
+      } else {
+        alert('Error: ' + (data.error || 'No se pudo guardar'));
+      }
+    } catch (err) {
+      alert('Error al conectar con el servidor de carnets.');
+    }
+  };
+
+  // Cargar pedidos, flota y carnets desde la BD
   const cargarDatosBD = async () => {
     try {
       const res = await fetch('/api/pedidos', { cache: 'no-store' });
@@ -232,12 +288,22 @@ export default function Panel({ email }) {
       const resFlota = await fetch('/api/flota', { cache: 'no-store' });
       if (resFlota.ok) {
         const dataFlota = await resFlota.json();
-        if (dataFlota.success && Array.isArray(dataFlota.flota)) {
+        if (Array.isArray(dataFlota)) {
+          setFlotaMantenimientoBD(dataFlota);
+        } else if (dataFlota.success && Array.isArray(dataFlota.flota)) {
           setFlotaMantenimientoBD(dataFlota.flota);
         }
       }
+
+      const resCarnets = await fetch('/api/chofer/carnets', { cache: 'no-store' });
+      if (resCarnets.ok) {
+        const dataCarnets = await resCarnets.json();
+        if (Array.isArray(dataCarnets)) {
+          setChoferesCarnetsBD(dataCarnets);
+        }
+      }
     } catch (err) {
-      console.warn('Utilizando datos locales o cargados previamente.');
+      console.warn('Utilizando datos locales.');
     }
   };
 
@@ -317,7 +383,6 @@ export default function Panel({ email }) {
     setPedidoSeleccionado('');
   };
 
-  // --- OPTIMIZAR RUTA Y ENVIAR POR WHATSAPP ---
   const optimizarRutaOrdenada = () => {
     const listaAOptimar = pedidosAsignados.length > 0 ? pedidosAsignados : (pedidosBD.length > 0 ? pedidosBD : pedidosEjemplo);
     if (listaAOptimar.length === 0) {
@@ -332,7 +397,7 @@ export default function Panel({ email }) {
     setPedidosAsignados(rutaOrdenada);
     setKmTotalRuta(kmTotalCalculado);
 
-    alert(`¡Ruta optimizada!\nKilometraje total de ruta estimado: ${kmTotalCalculado} km.`);
+    alert(`¡Ruta optimizada!\nKilometraje total estimado: ${kmTotalCalculado} km.`);
   };
 
   const enviarRutaWhatsApp = () => {
@@ -405,10 +470,12 @@ export default function Panel({ email }) {
           body: JSON.stringify({
             patente: vehiculoEnUso.patente,
             modelo: vehiculoEnUso.modelo,
-            kmActual: nuevoKmActual,
-            frecuencia: vehiculoEnUso.frecuencia_mantenimiento,
-            ultimoKm: vehiculoEnUso.ultimo_mantenimiento_km,
-            tipoMantenimiento: vehiculoEnUso.tipo_mantenimiento
+            tipo_vehiculo: vehiculoEnUso.tipo_vehiculo || 'Furgón',
+            km_actual: nuevoKmActual,
+            frecuencia_mto: vehiculoEnUso.frecuencia_mto || 15000,
+            km_ultimo_service: vehiculoEnUso.km_ultimo_service || 0,
+            tipo_mantenimiento: vehiculoEnUso.tipo_mantenimiento,
+            costo_mantenimiento: vehiculoEnUso.costo_mantenimiento || 0
           })
         });
       }
@@ -459,10 +526,12 @@ export default function Panel({ email }) {
           body: JSON.stringify({
             patente: vehiculoEnUso.patente,
             modelo: vehiculoEnUso.modelo,
-            kmActual: kmFinalViajeSalta,
-            frecuencia: vehiculoEnUso.frecuencia_mantenimiento,
-            ultimoKm: vehiculoEnUso.ultimo_mantenimiento_km,
-            tipoMantenimiento: vehiculoEnUso.tipo_mantenimiento
+            tipo_vehiculo: vehiculoEnUso.tipo_vehiculo || 'Furgón',
+            km_actual: Number(kmFinalViajeSalta),
+            frecuencia_mto: vehiculoEnUso.frecuencia_mto || 15000,
+            km_ultimo_service: vehiculoEnUso.km_ultimo_service || 0,
+            tipo_mantenimiento: vehiculoEnUso.tipo_mantenimiento,
+            costo_mantenimiento: vehiculoEnUso.costo_mantenimiento || 0
           })
         });
       }
@@ -501,9 +570,21 @@ export default function Panel({ email }) {
     window.location.href = '/login';
   };
 
-  const vehiculoActualObj = flotaVehiculos.find(v => v.dominio === vehiculoSeleccionado);
   const listaMostrada = (pedidosBD.length > 0 ? pedidosBD : pedidosAsignados).filter(p => !pedidosArchivadosRuta.includes(p.id));
   const listaReportes = pedidosBD.length > 0 ? pedidosBD : [];
+
+  // Cálculos para el Dashboard superior
+  const vehiculosOrdenadosCostos = [...flotaMantenimientoBD].sort((a, b) => Number(b.costo_mantenimiento || 0) - Number(a.costo_mantenimiento || 0));
+  
+  const hoyFecha = new Date();
+  const choferesEnAlerta = choferesCarnetsBD.filter(c => {
+    const vencimientos = [c.vencimiento_carnet_conducir, c.vencimiento_cargas_peligrosas, c.vencimiento_cargas_generales, c.vencimiento_psicofisico];
+    return vencimientos.some(v => {
+      if (!v) return false;
+      const diasRestantes = (new Date(v) - hoyFecha) / (1000 * 60 * 60 * 24);
+      return diasRestantes <= 30; // Alerta si vence en 30 días o ya venció
+    });
+  });
 
   return (
     <div style={{ backgroundColor: '#f1f5f9', minHeight: '100vh', fontFamily: 'sans-serif' }}>
@@ -518,21 +599,18 @@ export default function Panel({ email }) {
         alignItems: 'center',
         position: 'relative'
       }}>
-        {/* Lado izquierdo: Fecha */}
         <div>
           <span style={{ fontSize: '13px', color: '#a7f3d0', fontWeight: '500' }}>
             {fechaFormateada}
           </span>
         </div>
 
-        {/* Centro: Área Logística */}
         <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', textAlign: 'center' }}>
           <h1 style={{ fontSize: '22px', fontWeight: 'bold', margin: 0, letterSpacing: '0.5px' }}>
             Área Logística
           </h1>
         </div>
 
-        {/* Lado derecho: Placa de vehículo y botón salir */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{
             backgroundColor: '#ffffff',
@@ -571,58 +649,111 @@ export default function Panel({ email }) {
       {/* CONTENIDO PRINCIPAL */}
       <div style={{ padding: '24px', maxWidth: '1100px', margin: '0 auto' }}>
         
-        {/* TÍTULO Y BOTONERA DE NAVEGACIÓN */}
+        {/* TÍTULO Y BOTONERA DE NAVEGACIÓN (IMPORTAR EXCEL ARRIBA) */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
           <div>
             <h1 style={{ fontSize: '24px', fontWeight: 'bold', margin: 0, color: '#0f172a' }}>
-              {esChofer ? 'Mi Ruta y Transporte Asignado' : 'Gestión Logística y Control de Viajes'}
+              {esChofer ? 'Mi Ruta y Transporte Asignado' : 'Gestión Logística y Control de Vehículos'}
             </h1>
             {email && (
               <p style={{ fontSize: '13px', color: '#64748b', margin: '4px 0 0 0' }}>
-                Conectado como: <strong>{email}</strong> ({esChofer ? 'Chofer' : 'Encargado de Logística'})
+                Conectado como: <strong>{email}</strong> ({esChofer ? 'Chofer' : 'Encargado de Logística'}) | Hub: <strong>Maestro Pedernera 1217</strong>
               </p>
             )}
           </div>
           
           {!esChofer && (
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              {/* BOTÓN IMPORTAR EXCEL MÁS ARRIBA */}
+              <button 
+                onClick={() => document.getElementById('inputExcelVentas').click()}
+                style={{ backgroundColor: '#047857', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
+              >
+                📊 Importar Excel
+              </button>
+              <input type="file" id="inputExcelVentas" accept=".xlsx, .xls, .csv" style={{ display: 'none' }} onChange={handleFileUpload} />
+
               <button 
                 onClick={() => { setPestanaActiva('gestion'); cargarDatosBD(); }}
-                style={{ backgroundColor: pestanaActiva === 'gestion' ? '#1e293b' : '#64748b', color: 'white', border: 'none', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}
+                style={{ backgroundColor: pestanaActiva === 'gestion' ? '#1e293b' : '#64748b', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
               >
-                🗺️ Rutas y Asignación
+                🗺️ Rutas
               </button>
+
               <button 
                 onClick={() => { setPestanaActiva('reportes'); cargarDatosBD(); }}
-                style={{ backgroundColor: pestanaActiva === 'reportes' ? '#1e293b' : '#64748b', color: 'white', border: 'none', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}
+                style={{ backgroundColor: pestanaActiva === 'reportes' ? '#1e293b' : '#64748b', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
               >
-                📊 Reportes y Exportación
+                📊 Reportes
               </button>
 
               <button 
                 onClick={() => setPestanaActiva('flotaPersonal')}
-                style={{ backgroundColor: pestanaActiva === 'flotaPersonal' ? '#1e293b' : '#64748b', color: 'white', border: 'none', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}
+                style={{ backgroundColor: pestanaActiva === 'flotaPersonal' ? '#1e293b' : '#64748b', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
               >
                 🚚 Flota y Personal
               </button>
 
               <button 
                 onClick={() => setPestanaActiva('mantenimientoFlota')}
-                style={{ backgroundColor: pestanaActiva === 'mantenimientoFlota' ? '#1e293b' : '#b45309', color: 'white', border: 'none', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}
+                style={{ backgroundColor: pestanaActiva === 'mantenimientoFlota' ? '#1e293b' : '#b45309', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
               >
-                🛠️ Mantenimiento de Flota
+                🛠️ Mantenimiento
               </button>
 
+              {/* NUEVA PESTAÑA AL LADO DE MANTENIMIENTO */}
               <button 
-                onClick={() => document.getElementById('inputExcelVentas').click()}
-                style={{ backgroundColor: '#047857', color: 'white', border: 'none', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' }}
+                onClick={() => { setPestanaActiva('choferesCarnets'); cargarDatosBD(); }}
+                style={{ backgroundColor: pestanaActiva === 'choferesCarnets' ? '#1e293b' : '#0369a1', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
               >
-                📊 Importar Excel
+                🪪 Carnets Choferes
               </button>
-              <input type="file" id="inputExcelVentas" accept=".xlsx, .xls, .csv" style={{ display: 'none' }} onChange={handleFileUpload} />
             </div>
           )}
         </div>
+
+        {/* ESTILO DASHBOARD SUPERIOR (RESUMEN EJECUTIVO) */}
+        {!esChofer && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '15px', marginBottom: '24px' }}>
+            
+            {/* Widget 1: Vehículos con mayores costos */}
+            <div style={{ backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <h4 style={{ margin: '0 0 10px 0', fontSize: '15px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                💰 Top Vehículos con Mayores Costos
+              </h4>
+              {vehiculosOrdenadosCostos.length === 0 ? (
+                <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>Sin registros de costos aún.</p>
+              ) : (
+                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px', color: '#334155' }}>
+                  {vehiculosOrdenadosCostos.slice(0, 3).map((v, i) => (
+                    <li key={i} style={{ marginBottom: '6px' }}>
+                      <strong style={{ fontFamily: 'monospace' }}>{v.patente}</strong> ({v.modelo || 'Flota'}): <span style={{ color: '#b91c1c', fontWeight: 'bold' }}>${Number(v.costo_mantenimiento || 0).toLocaleString()}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Widget 2: Alertas documentación choferes */}
+            <div style={{ backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <h4 style={{ margin: '0 0 10px 0', fontSize: '15px', color: '#991b1b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                ⚠️ Alertas de Vencimiento de Carnets ({choferesEnAlerta.length})
+              </h4>
+              {choferesEnAlerta.length === 0 ? (
+                <p style={{ fontSize: '13px', color: '#166534', margin: 0, fontWeight: 'bold' }}>✅ Todos los choferes al día con sus carnets.</p>
+              ) : (
+                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px', color: '#991b1b' }}>
+                  {choferesEnAlerta.slice(0, 3).map((c, i) => (
+                    <li key={i} style={{ marginBottom: '6px' }}>
+                      <strong>{c.nombre_chofer}</strong> (DNI: {c.dni}) - Requiere renovación próxima.
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+          </div>
+        )}
 
         {/* VISTA CHOFER: CHECKLIST */}
         {esChofer && !checklistEnviado ? (
@@ -631,7 +762,7 @@ export default function Panel({ email }) {
               <div style={{ borderLeft: '4px solid #f59e0b', backgroundColor: '#fffbeb', padding: '16px', borderRadius: '6px', marginBottom: '20px' }}>
                 <h3 style={{ margin: '0 0 6px 0', fontSize: '16px', color: '#92400e' }}>Control del vehículo</h3>
                 <p style={{ margin: 0, fontSize: '13px', color: '#b45309' }}>
-                  Complétalo antes de salir. Hasta que lo envíes no vas a ver los pedidos del día.
+                  Complétalo antes de salir desde Maestro Pedernera 1217. Hasta que lo envíes no verás los pedidos del día.
                 </p>
               </div>
 
@@ -722,13 +853,13 @@ export default function Panel({ email }) {
                 </div>
               </div>
 
-              {/* CAJA DE RECORRIDO ESTIMADO Y KILOMETRAJE DE LA RUTA */}
+              {/* RECORRIDO ESTIMADO */}
               <div style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <span style={{ fontSize: '13px', color: '#1e40af', fontWeight: 'bold' }}>📍 Recorrido Estimado de la Ruta:</span>
                   <p style={{ margin: '2px 0 0 0', fontSize: '18px', fontWeight: 'bold', color: '#1e3a8a' }}>{kmTotalRuta || 830} KM Total</p>
                 </div>
-                <span style={{ fontSize: '12px', color: '#2563eb' }}>Centro de Distribución Salta</span>
+                <span style={{ fontSize: '12px', color: '#2563eb' }}>Hub: Maestro Pedernera 1217</span>
               </div>
 
               <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '16px', marginBottom: '16px' }}>
@@ -739,13 +870,12 @@ export default function Panel({ email }) {
                       onClick={() => setModalCierreFinalViaje(true)}
                       style={{ padding: '8px 14px', backgroundColor: '#064e3b', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
                     >
-                      🏁 Finalizar Viaje Completo (Cierre Salta)
+                      🏁 Finalizar Viaje Completo (Cierre Hub)
                     </button>
                   )}
                 </div>
 
                 {listaMostrada.map((p, idx) => {
-                  const esOtraProvincia = (p.provincia || 'Salta').toLowerCase() !== 'salta';
                   const telefonoCliente = p.telefono || p.celular || '3874556677';
 
                   return (
@@ -818,7 +948,6 @@ export default function Panel({ email }) {
                 )}
               </div>
 
-              {/* BOTONES DE OPTIMIZAR RUTA Y ENVIAR POR WHATSAPP */}
               {!esChofer && (
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '20px' }}>
                   <button onClick={optimizarRutaOrdenada} style={{ padding: '10px 20px', backgroundColor: '#facc15', color: '#713f12', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}>
@@ -892,16 +1021,15 @@ export default function Panel({ email }) {
           </div>
         )}
 
-        {/* PESTAÑA 3: FLOTA Y PERSONAL COMPLETA */}
+        {/* PESTAÑA 3: FLOTA Y PERSONAL */}
         {pestanaActiva === 'flotaPersonal' && !esChofer && (
           <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
             <h3 style={{ margin: '0 0 20px 0', fontSize: '20px', fontWeight: 'bold', color: '#0f172a' }}>
-              🏢 Administración de Flota y Personal (Choferes y Ayudantes)
+              🏢 Administración de Flota y Personal
             </h3>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginBottom: '30px' }}>
               
-              {/* Formulario Personal */}
               <div style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                 <h4 style={{ margin: '0 0 15px 0', color: '#064e3b', fontSize: '16px' }}>➕ Registrar Nuevo Personal</h4>
                 <form onSubmit={agregarPersonal}>
@@ -918,7 +1046,7 @@ export default function Panel({ email }) {
                   </div>
 
                   <div style={{ marginBottom: '12px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Clasificación / Rol:</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Rol:</label>
                     <select 
                       value={nuevoRolPersonal} 
                       onChange={(e) => setNuevoRolPersonal(e.target.value)} 
@@ -930,7 +1058,7 @@ export default function Panel({ email }) {
                   </div>
 
                   <div style={{ marginBottom: '12px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Correo Electrónico:</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Correo:</label>
                     <input 
                       type="email" 
                       placeholder="correo@dmmaestro.com" 
@@ -941,7 +1069,7 @@ export default function Panel({ email }) {
                   </div>
 
                   <div style={{ marginBottom: '15px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Teléfono / Celular:</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Teléfono:</label>
                     <input 
                       type="text" 
                       placeholder="387..." 
@@ -957,9 +1085,8 @@ export default function Panel({ email }) {
                 </form>
               </div>
 
-              {/* Formulario Vehículo */}
               <div style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                <h4 style={{ margin: '0 0 15px 0', color: '#064e3b', fontSize: '16px' }}>🚛 Registrar / Modificar Vehículo (Flota)</h4>
+                <h4 style={{ margin: '0 0 15px 0', color: '#064e3b', fontSize: '16px' }}>🚛 Registrar Vehículo</h4>
                 <form onSubmit={agregarVehiculo}>
                   <div style={{ marginBottom: '12px' }}>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Patente / Dominio:</label>
@@ -974,7 +1101,7 @@ export default function Panel({ email }) {
                   </div>
 
                   <div style={{ marginBottom: '12px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Modelo / Tipo:</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Modelo:</label>
                     <input 
                       type="text" 
                       placeholder="Ej: IVECO Daily" 
@@ -997,7 +1124,7 @@ export default function Panel({ email }) {
                   </div>
 
                   <button type="submit" style={{ width: '100%', padding: '10px', backgroundColor: '#0284c7', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
-                    Guardar y Vincular a Mantenimiento
+                    Guardar Vehículo
                   </button>
                 </form>
               </div>
@@ -1006,9 +1133,8 @@ export default function Panel({ email }) {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
               
-              {/* Tabla Personal */}
               <div>
-                <h4 style={{ margin: '0 0 10px 0', color: '#1e293b' }}>👥 Plantel Registrado (Choferes y Ayudantes)</h4>
+                <h4 style={{ margin: '0 0 10px 0', color: '#1e293b' }}>👥 Plantel Registrado</h4>
                 <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
                     <thead>
@@ -1024,21 +1150,13 @@ export default function Panel({ email }) {
                         <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
                           <td style={{ padding: '8px', fontWeight: 'bold' }}>{p.nombre}</td>
                           <td style={{ padding: '8px' }}>
-                            <span style={{ 
-                              padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold',
-                              backgroundColor: p.rol === 'Chofer' ? '#dcfce7' : '#e0f2fe',
-                              color: p.rol === 'Chofer' ? '#166534' : '#0369a1'
-                            }}>
+                            <span style={{ padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', backgroundColor: p.rol === 'Chofer' ? '#dcfce7' : '#e0f2fe', color: p.rol === 'Chofer' ? '#166534' : '#0369a1' }}>
                               {p.rol}
                             </span>
                           </td>
                           <td style={{ padding: '8px', color: '#64748b' }}>{p.telefono}</td>
                           <td style={{ padding: '8px', textAlign: 'center' }}>
-                            <button 
-                              onClick={() => eliminarPersonal(p.id)}
-                              title="Eliminar del plantel"
-                              style={{ backgroundColor: '#fee2e2', color: '#b91c1c', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
-                            >
+                            <button onClick={() => eliminarPersonal(p.id)} style={{ backgroundColor: '#fee2e2', color: '#b91c1c', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
                               🗑️
                             </button>
                           </td>
@@ -1049,16 +1167,15 @@ export default function Panel({ email }) {
                 </div>
               </div>
 
-              {/* Tabla Vehículos */}
               <div>
-                <h4 style={{ margin: '0 0 10px 0', color: '#1e293b' }}>🚛 Vehículos Activos de la Flota</h4>
+                <h4 style={{ margin: '0 0 10px 0', color: '#1e293b' }}>🚛 Vehículos Activos</h4>
                 <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
                     <thead>
                       <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
                         <th style={{ padding: '8px' }}>Patente</th>
                         <th style={{ padding: '8px' }}>Modelo</th>
-                        <th style={{ padding: '8px' }}>Km Actual</th>
+                        <th style={{ padding: '8px' }}>Km</th>
                         <th style={{ padding: '8px', textAlign: 'center' }}>Acción</th>
                       </tr>
                     </thead>
@@ -1069,22 +1186,7 @@ export default function Panel({ email }) {
                           <td style={{ padding: '8px' }}>{v.modelo}</td>
                           <td style={{ padding: '8px', color: '#0284c7', fontWeight: 'bold' }}>{v.km} km</td>
                           <td style={{ padding: '8px', textAlign: 'center' }}>
-                            <button 
-                              onClick={() => {
-                                setNuevoDominioVehiculo(v.dominio);
-                                setNuevoModeloVehiculo(v.modelo);
-                                setNuevoKmVehiculo(v.km);
-                              }}
-                              title="Cargar datos en el formulario para modificar"
-                              style={{ backgroundColor: '#fef3c7', color: '#92400e', border: 'none', borderRadius: '4px', padding: '4px 6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px', marginRight: '4px' }}
-                            >
-                              ✏️
-                            </button>
-                            <button 
-                              onClick={() => eliminarVehiculo(v.dominio)}
-                              title="Eliminar vehículo de la flota"
-                              style={{ backgroundColor: '#fee2e2', color: '#b91c1c', border: 'none', borderRadius: '4px', padding: '4px 6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
-                            >
+                            <button onClick={() => eliminarVehiculo(v.dominio)} style={{ backgroundColor: '#fee2e2', color: '#b91c1c', border: 'none', borderRadius: '4px', padding: '4px 6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
                               🗑️
                             </button>
                           </td>
@@ -1100,22 +1202,21 @@ export default function Panel({ email }) {
           </div>
         )}
 
-        {/* PESTAÑA 4: MANTENIMIENTO DE FLOTA Y ALERTAS */}
+        {/* PESTAÑA 4: MANTENIMIENTO DE FLOTA */}
         {pestanaActiva === 'mantenimientoFlota' && !esChofer && (
           <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
             <h3 style={{ margin: '0 0 10px 0', fontSize: '20px', fontWeight: 'bold', color: '#0f172a' }}>
-              🛠️ Control de Mantenimiento Preventivo de Flota
+              🛠️ Control de Mantenimiento Preventivo y Costos
             </h3>
             <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px' }}>
-              Monitoreo automático de kilometrajes anteriores, actuales y alertas cuando falten 2.500 km o menos para el service.
+              Monitoreo automático de kilometrajes y costos asociados al mantenimiento de la flota.
             </p>
 
-            {/* Formulario Mantenimiento */}
             <div style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '25px' }}>
-              <h4 style={{ margin: '0 0 15px 0', color: '#b45309', fontSize: '16px' }}>📝 Registrar / Actualizar Kilometraje o Service</h4>
+              <h4 style={{ margin: '0 0 15px 0', color: '#b45309', fontSize: '16px' }}>📝 Registrar / Actualizar Kilometraje, Service y Costos</h4>
               <form onSubmit={guardarVehiculoMantenimiento} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Patente / Dominio:</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Patente:</label>
                   <input 
                     type="text" 
                     placeholder="Ej: NEB732" 
@@ -1126,7 +1227,7 @@ export default function Panel({ email }) {
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Modelo del Vehículo:</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Modelo:</label>
                   <input 
                     type="text" 
                     placeholder="Ej: IVECO Daily" 
@@ -1139,7 +1240,7 @@ export default function Panel({ email }) {
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Km Actual:</label>
                   <input 
                     type="number" 
-                    placeholder="Ej: 124500" 
+                    placeholder="124500" 
                     value={nuevoKmActualMto} 
                     onChange={(e) => setNuevoKmActualMto(e.target.value)} 
                     style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
@@ -1159,19 +1260,19 @@ export default function Panel({ email }) {
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Km Último Service:</label>
                   <input 
                     type="number" 
-                    placeholder="Ej: 115000" 
+                    placeholder="115000" 
                     value={nuevoUltimoMtoKm} 
                     onChange={(e) => setNuevoUltimoMtoKm(e.target.value)} 
                     style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Tipo de Mantenimiento:</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Costo Mantenimiento ($):</label>
                   <input 
-                    type="text" 
-                    placeholder="Ej: Service de aceite y filtros" 
-                    value={nuevoTipoMto} 
-                    onChange={(e) => setNuevoTipoMto(e.target.value)} 
+                    type="number" 
+                    placeholder="Ej: 85000" 
+                    value={nuevoCostoMto} 
+                    onChange={(e) => setNuevoCostoMto(e.target.value)} 
                     style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
                   />
                 </div>
@@ -1183,25 +1284,23 @@ export default function Panel({ email }) {
               </form>
             </div>
 
-            {/* Tabla Mantenimiento */}
             <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
                 <thead>
                   <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#334155' }}>
                     <th style={{ padding: '10px' }}>Patente</th>
                     <th style={{ padding: '10px' }}>Modelo</th>
-                    <th style={{ padding: '10px' }}>Km Anterior</th>
                     <th style={{ padding: '10px' }}>Km Actual</th>
-                    <th style={{ padding: '10px' }}>Próximo Service (Km)</th>
-                    <th style={{ padding: '10px' }}>Mantenimiento a Realizar</th>
+                    <th style={{ padding: '10px' }}>Próximo Service</th>
+                    <th style={{ padding: '10px' }}>Costo Acumulado</th>
                     <th style={{ padding: '10px' }}>Estado / Alerta</th>
                   </tr>
                 </thead>
                 <tbody>
                   {flotaMantenimientoBD.map((v, idx) => {
                     const kmActual = Number(v.km_actual || 0);
-                    const ultimoMto = Number(v.ultimo_mantenimiento_km || 0);
-                    const frecuencia = Number(v.frecuencia_mantenimiento || 15000);
+                    const ultimoMto = Number(v.km_ultimo_service || 0);
+                    const frecuencia = Number(v.frecuencia_mto || 15000);
                     const proximoServiceKm = ultimoMto + frecuencia;
                     const kmRestantes = proximoServiceKm - kmActual;
                     
@@ -1212,22 +1311,21 @@ export default function Panel({ email }) {
                       <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: vencido ? '#fee2e2' : enAlerta ? '#fef9c3' : '#fff' }}>
                         <td style={{ padding: '10px', fontWeight: 'bold', fontFamily: 'monospace' }}>{v.patente}</td>
                         <td style={{ padding: '10px' }}>{v.modelo}</td>
-                        <td style={{ padding: '10px', color: '#64748b' }}>{v.km_anterior || 0} km</td>
                         <td style={{ padding: '10px', fontWeight: 'bold', color: '#0284c7' }}>{kmActual} km</td>
                         <td style={{ padding: '10px', fontWeight: 'bold' }}>{proximoServiceKm} km</td>
-                        <td style={{ padding: '10px' }}>{v.tipo_mantenimiento || 'Mantenimiento General'}</td>
+                        <td style={{ padding: '10px', fontWeight: 'bold', color: '#b91c1c' }}>${Number(v.costo_mantenimiento || 0).toLocaleString()}</td>
                         <td style={{ padding: '10px' }}>
                           {vencido ? (
                             <span style={{ backgroundColor: '#b91c1c', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
-                              ⚠️ ¡MANTENIMIENTO VENCIDO!
+                              ⚠️ ¡VENCIDO!
                             </span>
                           ) : enAlerta ? (
                             <span style={{ backgroundColor: '#ca8a04', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
-                              🚨 ALERTA: Faltan {kmRestantes} km
+                              🚨 ALERTA ({kmRestantes} km)
                             </span>
                           ) : (
                             <span style={{ backgroundColor: '#166534', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
-                              ✅ En Vigencia (Faltan {kmRestantes} km)
+                              ✅ En Vigencia
                             </span>
                           )}
                         </td>
@@ -1240,6 +1338,125 @@ export default function Panel({ email }) {
           </div>
         )}
 
+        {/* PESTAÑA 5: CARNETS DE CHOFERES (UBICADA AL LADO DE MANTENIMIENTO) */}
+        {pestanaActiva === 'choferesCarnets' && !esChofer && (
+          <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '20px', fontWeight: 'bold', color: '#0f172a' }}>
+              🪪 Gestión de Carnets y Documentación Obligatoria de Choferes
+            </h3>
+            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px' }}>
+              Control de vencimientos para Carnet de Conducir, Cargas Peligrosas, Cargas Generales y Exámen Psicofísico.
+            </p>
+
+            <div style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '25px' }}>
+              <h4 style={{ margin: '0 0 15px 0', color: '#0369a1', fontSize: '16px' }}>📝 Registrar / Actualizar Vencimientos de Carnets</h4>
+              <form onSubmit={choferesCarnetsBD && guardarChoferCarnet} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '15px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Nombre Chofer:</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ej: Juan Pérez" 
+                    value={nombreChoferCarnet} 
+                    onChange={(e) => setNombreChoferCarnet(e.target.value)} 
+                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                    required 
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>DNI:</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ej: 34567890" 
+                    value={dniChoferCarnet} 
+                    onChange={(e) => setDniChoferCarnet(e.target.value)} 
+                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                    required 
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Teléfono:</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ej: 3874556677" 
+                    value={telChoferCarnet} 
+                    onChange={(e) => setTelChoferCarnet(e.target.value)} 
+                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Carnet Conducir (Venc.):</label>
+                  <input 
+                    type="date" 
+                    value={vencConducir} 
+                    onChange={(e) => setVencConducir(e.target.value)} 
+                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Cargas Peligrosas (Venc.):</label>
+                  <input 
+                    type="date" 
+                    value={vencPeligrosas} 
+                    onChange={(e) => setVencPeligrosas(e.target.value)} 
+                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Cargas Generales (Venc.):</label>
+                  <input 
+                    type="date" 
+                    value={vencGenerales} 
+                    onChange={(e) => setVencGenerales(e.target.value)} 
+                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Exámen Psicofísico (Venc.):</label>
+                  <input 
+                    type="date" 
+                    value={vencPsicofisico} 
+                    onChange={(e) => setVencPsicofisico(e.target.value)} 
+                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
+                  />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                  <button type="submit" style={{ width: '100%', padding: '10px', backgroundColor: '#0369a1', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
+                    Guardar / Actualizar Carnets
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#334155' }}>
+                    <th style={{ padding: '10px' }}>Chofer</th>
+                    <th style={{ padding: '10px' }}>DNI</th>
+                    <th style={{ padding: '10px' }}>Carnet Conducir</th>
+                    <th style={{ padding: '10px' }}>Cargas Peligrosas</th>
+                    <th style={{ padding: '10px' }}>Cargas Generales</th>
+                    <th style={{ padding: '10px' }}>Exámen Psicofísico</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {choferesCarnetsBD.map((c, idx) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '10px', fontWeight: 'bold' }}>{c.nombre_chofer}</td>
+                      <td style={{ padding: '10px' }}>{c.dni}</td>
+                      <td style={{ padding: '10px' }}>{c.vencimiento_carnet_conducir ? c.vencimiento_carnet_conducir.slice(0, 10) : '-'}</td>
+                      <td style={{ padding: '10px' }}>{c.vencimiento_cargas_peligrosas ? c.vencimiento_cargas_peligrosas.slice(0, 10) : '-'}</td>
+                      <td style={{ padding: '10px' }}>{c.vencimiento_cargas_generales ? c.vencimiento_cargas_generales.slice(0, 10) : '-'}</td>
+                      <td style={{ padding: '10px' }}>{c.vencimiento_psicofisico ? c.vencimiento_psicofisico.slice(0, 10) : '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+          </div>
+        )}
+
       </div>
 
       {/* MODAL CIERRE PEDIDO */}
@@ -1248,7 +1465,7 @@ export default function Panel({ email }) {
           <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '12px', maxWidth: '550px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: 'bold' }}>Cierre de Parada y Viáticos</h3>
             <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '15px' }}>
-              Pedido #{pedidoACerrar?.id} - Cliente: <strong>{pedidoACerrar?.cliente || pedidoACerrar?.Cliente}</strong> ({pedidoACerrar?.provincia || 'Salta'})
+              Pedido #{pedidoACerrar?.id} - Cliente: <strong>{pedidoACerrar?.cliente || pedidoACerrar?.Cliente}</strong>
             </p>
 
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>Estado de Entrega:</label>
@@ -1270,9 +1487,9 @@ export default function Panel({ email }) {
       {modalCierreFinalViaje && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '12px', maxWidth: '450px', width: '90%' }}>
-            <h3 style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: 'bold' }}>🏁 Cierre Final del Viaje</h3>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: 'bold' }}>🏁 Cierre Final del Viaje (Regreso Hub)</h3>
             <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '15px' }}>
-              Ingresa el kilometraje final del vehículo. Esto actualizará automáticamente el acumulado de la flota.
+              Ingresa el kilometraje final del vehículo al retornar a Maestro Pedernera 1217.
             </p>
 
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px', color: '#1e293b' }}>
