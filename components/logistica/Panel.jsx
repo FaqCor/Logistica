@@ -623,11 +623,65 @@ export default function Panel({ email }) {
 
                 {listaMostrada.map((p, idx) => {
                   const esOtraProvincia = (p.provincia || 'Salta').toLowerCase() !== 'salta';
+                  const telefonoCliente = p.telefono || p.celular || '3874556677';
+
                   return (
                     <div key={idx} style={{ marginBottom: '12px', padding: '12px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                       <div>
-                        <strong style={{ fontSize: '15px' }}>#{p.id} - {p.cliente || p.Cliente}</strong> ({p.provincia || 'Salta'})
-                        <br/>📍 Dirección: <strong>{p.direccion || p.Direccion}</strong> | 📦 Bultos: <strong>{p.bultos || 1}</strong>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                          <strong style={{ fontSize: '15px' }}>#{p.id} - {p.cliente || p.Cliente || 'Cliente'}</strong> ({p.provincia || 'Salta'})
+                          
+                          {/* Botón de Teléfono (Llamar / Contactar) */}
+                          <a 
+                            href={`tel:${telefonoCliente}`} 
+                            title={`Llamar a ${p.cliente || 'cliente'} (${telefonoCliente})`}
+                            style={{ 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'center', 
+                              width: '28px', 
+                              height: '28px', 
+                              backgroundColor: '#dcfce7', 
+                              color: '#15803d', 
+                              borderRadius: '50%', 
+                              textDecoration: 'none',
+                              fontSize: '14px',
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                            }}
+                          >
+                            📞
+                          </a>
+
+                          {/* Botón de Basura (Quitar de la ruta activa) */}
+                          {!esChofer && (
+                            <button 
+                              onClick={() => {
+                                if (confirm(`¿Deseas quitar el pedido #${p.id} de la ruta activa?`)) {
+                                  setPedidosArchivadosRuta([...pedidosArchivadosRuta, p.id]);
+                                }
+                              }}
+                              title="Quitar pedido de la ruta"
+                              style={{ 
+                                display: 'inline-flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center', 
+                                width: '28px', 
+                                height: '28px', 
+                                backgroundColor: '#fee2e2', 
+                                color: '#b91c1c', 
+                                border: 'none', 
+                                borderRadius: '50%', 
+                                cursor: 'pointer',
+                                fontSize: '14px',
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                              }}
+                            >
+                              🗑️
+                            </button>
+                          )}
+                        </div>
+
+                        📍 Dirección: <strong>{p.direccion || p.Direccion}</strong> | 📦 Bultos: <strong>{p.bultos || 1}</strong>
                         <br/>
                         <span style={{ fontSize: '12px', color: '#475569' }}>
                           Tipo de Recorrido: <strong>{esOtraProvincia ? 'Interurbano / Otra Provincia (Pide KM por parada)' : 'Local Salta Capital'}</strong>
