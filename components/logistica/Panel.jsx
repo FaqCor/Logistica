@@ -10,52 +10,64 @@ export default function Panel({ email }) {
   const esChofer = email && (email.toLowerCase().includes('chofer') || email.toLowerCase().includes('driver')); 
   const [pestanaActiva, setPestanaActiva] = useState('gestion');
 
-  // Estados globales de la aplicación
+  // Estados de control y fecha
   const [checklistEnviado, setChecklistEnviado] = useState(false);
   const [kmChecklist, setKmChecklist] = useState('54000');
   const [enviandoChecklist, setEnviandoChecklist] = useState(false);
   const hoy = new Date();
   const fechaFormateada = `${hoy.getDate().toString().padStart(2, '0')}/${(hoy.getMonth() + 1).toString().padStart(2, '0')}/${hoy.getFullYear()}`;
 
+  // Estados de datos
   const [modalAbierto, setModalAbierto] = useState(false);
   const [datosExcel, setDatosExcel] = useState([]);
   const [importando, setImportando] = useState(false);
   const [pedidosBD, setPedidosBD] = useState([]);
 
-  // 1. PERSISTENCIA: Inicializar leyendo desde localStorage si existe
-  const [pedidosPorChofer, setPedidosPorChofer] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const guardado = localStorage.getItem('pedidosPorChofer');
-      return guardado ? JSON.parse(guardado) : {};
-    }
-    return {};
-  });
+  // --- PERSISTENCIA CON LOCALSTORAGE ---
+  const [pedidosPorChofer, setPedidosPorChofer] = useState({});
+  const [vehiculoPorChofer, setVehiculoPorChofer] = useState({});
 
-  const [vehiculoPorChofer, setVehiculoPorChofer] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const guardado = localStorage.getItem('vehiculoPorChofer');
-      return guardado ? JSON.parse(guardado) : {};
-    }
-    return {};
-  });
-
-  const [pedidosSeleccionadosCheckbox, setPedidosSeleccionadosCheckbox] = useState([]);
-  const [pedidosArchivadosRuta, setPedidosArchivadosRuta] = useState([]);
-
-  // Guardar automáticamente en localStorage cuando cambien las rutas o vehículos asignados
+  // Carga inicial desde localStorage al montar el componente (evita pérdida al refrescar)
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    const pedidosGuardados = localStorage.getItem('pedidosPorChofer');
+    if (pedidosGuardados) {
+      try { setPedidosPorChofer(JSON.parse(pedidosGuardados)); } catch (e) { console.error(e); }
+    }
+
+    const vehiculosGuardados = localStorage.getItem('vehiculoPorChofer');
+    if (vehiculosGuardados) {
+      try { setVehiculoPorChofer(JSON.parse(vehiculosGuardados)); } catch (e) { console.error(e); }
+    }
+  }, []);
+
+  // Guardar en localStorage cada vez que hay cambios
+  useEffect(() => {
+    if (Object.keys(pedidosPorChofer).length > 0) {
       localStorage.setItem('pedidosPorChofer', JSON.stringify(pedidosPorChofer));
     }
   }, [pedidosPorChofer]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (Object.keys(vehiculoPorChofer).length > 0) {
       localStorage.setItem('vehiculoPorChofer', JSON.stringify(vehiculoPorChofer));
     }
   }, [vehiculoPorChofer]);
 
-  // Estados de Flota, Mantenimiento, Combustible, etc.
+  // Borrado manual de historial
+  const limpiarHistorialRutas = () => {
+    if (confirm('¿Estás seguro de que deseas borrar todo el historial de rutas asignadas?')) {
+      setPedidosPorChofer({});
+      setVehiculoPorChofer({});
+      localStorage.removeItem('pedidosPorChofer');
+      localStorage.removeItem('vehiculoPorChofer');
+      alert('Historial borrado con éxito.');
+    }
+  };
+
+  const [pedidosSeleccionadosCheckbox, setPedidosSeleccionadosCheckbox] = useState([]);
+  const [pedidosArchivadosRuta, setPedidosArchivadosRuta] = useState([]);
+
+  // Estados de Flota y Mantenimiento
   const [flotaMantenimientoBD, setFlotaMantenimientoBD] = useState([]);
   const [nuevaPatenteMto, setNuevaPatenteMto] = useState('');
   const [nuevoModeloMto, setNuevoModeloMto] = useState('');
@@ -89,11 +101,13 @@ export default function Panel({ email }) {
 
   const [choferSeleccionado, setChoferSeleccionado] = useState(listaChoferes[0]?.nombre || 'Juan Pérez');
   const [vehiculoSeleccionado, setVehiculoSeleccionado] = useState(flotaVehiculos[0]?.dominio || 'NEB732');
+  
   const pedidosEjemplo = [
     { id: 101, cliente: 'Ferretería El Norte', provincia: 'Salta', localidad: 'General Güemes', direccion: 'Av. San Martín 450', bultos: 12, kmDesdeCD: 50, estado_entrega: 'Pendiente' },
     { id: 102, cliente: 'Corralón San Miguel', provincia: 'Tucumán', localidad: 'San Miguel de Tucumán', direccion: 'Av. Kirchner 1200', bultos: 45, kmDesdeCD: 310, estado_entrega: 'Pendiente' },
     { id: 103, cliente: 'Distribuidora del Centro', provincia: 'Santiago del Estero', localidad: 'Santiago Capital', direccion: 'Belgrano Sur 890', bultos: 30, kmDesdeCD: 470, estado_entrega: 'Pendiente' }
   ];
+  
   const [kmTotalRuta, setKmTotalRuta] = useState(0);
 
   // Modales
@@ -111,7 +125,7 @@ export default function Panel({ email }) {
         const data = await res.json();
         if (data.success && Array.isArray(data.pedidos)) setPedidosBD(data.pedidos);
       }
-    } catch (err) { console.warn('BD local'); }
+    } catch (err) { console.warn('Cargando base de datos local'); }
   };
 
   useEffect(() => { cargarDatosBD(); }, []);
@@ -134,26 +148,27 @@ export default function Panel({ email }) {
     const actualAsignados = pedidosPorChofer[choferSeleccionado] || [];
     const combinados = [...actualAsignados, ...pedidosAgn.filter(nuevo => !actualAsignados.some(ex => ex.id === nuevo.id))];
 
-    setPedidosPorChofer({ ...pedidosPorChofer, [choferSeleccionado]: combinados });
+    const nuevosPedidosPorChofer = { ...pedidosPorChofer, [choferSeleccionado]: combinados };
+    const nuevosVehiculosPorChofer = { ...vehiculoPorChofer, [choferSeleccionado]: vehiculoSeleccionado };
 
-    setVehiculoPorChofer(prev => ({
-      ...prev,
-      [choferSeleccionado]: vehiculoSeleccionado
-    }));
+    setPedidosPorChofer(nuevosPedidosPorChofer);
+    setVehiculoPorChofer(nuevosVehiculosPorChofer);
+
+    // Guardar explícitamente en localStorage
+    localStorage.setItem('pedidosPorChofer', JSON.stringify(nuevosPedidosPorChofer));
+    localStorage.setItem('vehiculoPorChofer', JSON.stringify(nuevosVehiculosPorChofer));
 
     setFlotaVehiculos(flotaVehiculos.map(v => v.dominio === vehiculoSeleccionado ? { ...v, estado: 'En Viaje' } : v));
     setPedidosSeleccionadosCheckbox([]);
   };
 
-  // NUEVA FUNCIÓN: Quitar un pedido de la asignación de un chofer específico
   const quitarPedidoDeChofer = (nombreChofer, idPedido) => {
     const listaActual = pedidosPorChofer[nombreChofer] || [];
     const listaNueva = listaActual.filter(p => p.id !== idPedido);
+    const actualizados = { ...pedidosPorChofer, [nombreChofer]: listaNueva };
     
-    setPedidosPorChofer({
-      ...pedidosPorChofer,
-      [nombreChofer]: listaNueva
-    });
+    setPedidosPorChofer(actualizados);
+    localStorage.setItem('pedidosPorChofer', JSON.stringify(actualizados));
   };
 
   const optimizarRutaEspecificaChofer = (nombreChofer) => {
@@ -163,7 +178,10 @@ export default function Panel({ email }) {
     const maxDist = Math.max(...rutaOrdenada.map(p => Number(p.kmDesdeCD || 50)));
     const kmTotalCalculado = Math.round(maxDist * 2.15);
 
-    setPedidosPorChofer({ ...pedidosPorChofer, [nombreChofer]: rutaOrdenada });
+    const actualizados = { ...pedidosPorChofer, [nombreChofer]: rutaOrdenada };
+    setPedidosPorChofer(actualizados);
+    localStorage.setItem('pedidosPorChofer', JSON.stringify(actualizados));
+
     if (nombreChofer === choferSeleccionado) setKmTotalRuta(kmTotalCalculado);
     alert(`¡Ruta optimizada para ${nombreChofer}! Total: ${kmTotalCalculado} KM.`);
   };
@@ -189,7 +207,7 @@ export default function Panel({ email }) {
     if (!nuevoNombrePersonal) return;
     setPersonalEmpresa([...personalEmpresa, { id: Date.now(), nombre: nuevoNombrePersonal, rol: nuevoRolPersonal, telefono: nuevoTelPersonal || 'Sin teléfono' }]);
     setNuevoNombrePersonal('');
-    alert('Personal agregado.');
+    alert('Personal agregado con éxito.');
   };
 
   const eliminarPersonal = (id) => setPersonalEmpresa(personalEmpresa.filter(p => p.id !== id));
@@ -203,12 +221,7 @@ export default function Panel({ email }) {
   };
 
   const eliminarVehiculo = (dom) => setFlotaVehiculos(flotaVehiculos.filter(v => v.dominio !== dom));
-
-  const guardarVehiculoMantenimiento = async (e) => {
-    e.preventDefault();
-    alert('Mantenimiento guardado.');
-  };
-
+  const guardarVehiculoMantenimiento = async (e) => { e.preventDefault(); alert('Mantenimiento guardado.'); };
   const exportarMantenimientoExcel = () => alert('Exportando mantenimiento...');
   const exportarReporteExcel = () => alert('Exportando reporte...');
 
@@ -221,22 +234,35 @@ export default function Panel({ email }) {
 
   return (
     <div style={{ backgroundColor: '#f1f5f9', minHeight: '100vh', fontFamily: 'sans-serif' }}>
+      {/* HEADER SUPERIOR */}
       <div style={{ backgroundColor: '#064e3b', color: '#fff', padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>{fechaFormateada}</span>
-        <h1 style={{ fontSize: '20px', margin: 0 }}>Área Logística</h1>
-        <button onClick={cerrarSesion} style={{ background: 'transparent', color: '#fff', border: '1px solid #fff', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer' }}>Salir</button>
+        <h1 style={{ fontSize: '20px', margin: 0, fontWeight: 'bold' }}>Área Logística</h1>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <button 
+            onClick={limpiarHistorialRutas} 
+            style={{ backgroundColor: '#b91c1c', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+          >
+            🗑️ Borrar Historial de Viajes
+          </button>
+          <button onClick={cerrarSesion} style={{ background: 'transparent', color: '#fff', border: '1px solid #fff', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer' }}>
+            Salir
+          </button>
+        </div>
       </div>
 
       <div style={{ padding: '24px', maxWidth: '1100px', margin: '0 auto' }}>
+        {/* NAVEGACIÓN PESTAÑAS */}
         {!esChofer && (
           <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
-            <button onClick={() => setPestanaActiva('gestion')} style={{ backgroundColor: pestanaActiva === 'gestion' ? '#1e293b' : '#64748b', color: '#fff', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer' }}>🗺️ Rutas</button>
-            <button onClick={() => setPestanaActiva('reportes')} style={{ backgroundColor: pestanaActiva === 'reportes' ? '#1e293b' : '#64748b', color: '#fff', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer' }}>📊 Reportes</button>
-            <button onClick={() => setPestanaActiva('flotaPersonal')} style={{ backgroundColor: pestanaActiva === 'flotaPersonal' ? '#1e293b' : '#64748b', color: '#fff', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer' }}>🚚 Flota y Personal</button>
-            <button onClick={() => setPestanaActiva('mantenimientoFlota')} style={{ backgroundColor: pestanaActiva === 'mantenimientoFlota' ? '#1e293b' : '#b45309', color: '#fff', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer' }}>🛠️ Mantenimiento</button>
+            <button onClick={() => setPestanaActiva('gestion')} style={{ backgroundColor: pestanaActiva === 'gestion' ? '#1e293b' : '#64748b', color: '#fff', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>🗺️ Rutas</button>
+            <button onClick={() => setPestanaActiva('reportes')} style={{ backgroundColor: pestanaActiva === 'reportes' ? '#1e293b' : '#64748b', color: '#fff', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>📊 Reportes</button>
+            <button onClick={() => setPestanaActiva('flotaPersonal')} style={{ backgroundColor: pestanaActiva === 'flotaPersonal' ? '#1e293b' : '#64748b', color: '#fff', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>🚚 Flota y Personal</button>
+            <button onClick={() => setPestanaActiva('mantenimientoFlota')} style={{ backgroundColor: pestanaActiva === 'mantenimientoFlota' ? '#1e293b' : '#b45309', color: '#fff', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>🛠️ Mantenimiento</button>
           </div>
         )}
 
+        {/* PESTAÑA RUTAS */}
         {pestanaActiva === 'gestion' && (
           <TabRutas 
             esChofer={esChofer}
@@ -268,10 +294,12 @@ export default function Panel({ email }) {
           />
         )}
 
+        {/* PESTAÑA REPORTES */}
         {pestanaActiva === 'reportes' && !esChofer && (
           <TabPedidos listaReportes={listaReportes} exportarReporteExcel={exportarReporteExcel} />
         )}
 
+        {/* PESTAÑA FLOTA Y PERSONAL */}
         {pestanaActiva === 'flotaPersonal' && !esChofer && (
           <TabFlota 
             personalEmpresa={personalEmpresa}
@@ -301,6 +329,7 @@ export default function Panel({ email }) {
           />
         )}
 
+        {/* PESTAÑA MANTENIMIENTO */}
         {pestanaActiva === 'mantenimientoFlota' && !esChofer && (
           <TabCostos 
             listaTodasPatentes={listaTodasPatentes}
