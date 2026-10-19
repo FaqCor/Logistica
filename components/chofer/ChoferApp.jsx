@@ -1,87 +1,113 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
-import { api, cerrarSesion, fechaCorta } from '@/components/api';
-import { Aviso, Patente } from '@/components/ui';
-import Checklist from './Checklist';
+import React, { useState } from 'react';
 import Pedidos from './Pedidos';
-import Viaticos from './Viaticos';
-import Incidencias from './Incidencias';
-import Km from './Km';
 
-const TABS = [
-  ['pedidos', 'Pedidos'],
-  ['viaticos', 'Viáticos'],
-  ['incidencias', 'Incidencias'],
-  ['km', 'Km'],
-];
+export default function ChoferApp({
+  emailChofer,
+  pedidosAsignados = [],
+  vehiculoAsignado = 'NEB732',
+  setModalCierreAbierto,
+  setPedidoACerrar,
+  setModalCierreFinalViaje,
+  checklistEnviado,
+  setChecklistEnviado
+}) {
+  const [modalIncidenciaAbierto, setModalIncidenciaAbierto] = useState(false);
+  const [motivoIncidencia, setMotivoIncidencia] = useState('');
 
-export default function ChoferApp() {
-  const [data, setData] = useState(null);
-  const [error, setError] = useState('');
-  const [tab, setTab] = useState('pedidos');
-
-  const cargar = useCallback(async () => {
-    try {
-      setData(await api('/api/chofer/ruta'));
-      setError('');
-    } catch (e) {
-      setError(e.message);
-    }
-  }, []);
-
-  useEffect(() => { cargar(); }, [cargar]);
-
-  const ruta = data?.ruta;
+  const registrarIncidencia = (e) => {
+    e.preventDefault();
+    if (!motivoIncidencia) return alert('Ingresa el motivo de la incidencia.');
+    alert('🚨 Incidencia reportada a la central de logística con éxito.');
+    setMotivoIncidencia('');
+    setModalIncidenciaAbierto(false);
+  };
 
   return (
-    <>
-      <header className="topbar">
-        <div>
-          <h1>{data?.chofer ? `Hola, ${data.chofer.nombre}` : 'Mi ruta'}</h1>
-          {ruta && <div className="small" style={{ opacity: .85 }}>{fechaCorta(ruta.fecha)}</div>}
+    <div style={{ maxWidth: '600px', margin: '0 auto', padding: '12px', fontFamily: 'sans-serif', minHeight: '100vh', backgroundColor: '#f1f5f9' }}>
+      
+      {/* HEADER DE LA CABINA */}
+      <div style={{ backgroundColor: '#064e3b', color: '#ffffff', padding: '16px', borderRadius: '12px', marginBottom: '16px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+          <span style={{ fontSize: '12px', color: '#a7f3d0', fontWeight: 'bold' }}>🚚 Modo Chofer - Unidad en Ruta</span>
+          <span style={{ backgroundColor: '#ffffff', color: '#0f172a', fontWeight: '900', padding: '2px 8px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '13px' }}>
+            {vehiculoAsignado}
+          </span>
         </div>
-        <div className="row">
-          {ruta && <Patente>{ruta.patente}</Patente>}
-          <button className="btn btn-ghost sm" onClick={cerrarSesion}>Salir</button>
-        </div>
-      </header>
+        <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold' }}>
+          {emailChofer || 'Chofer Asignado'}
+        </h2>
+        <span style={{ fontSize: '12px', color: '#d1fae5' }}>Base Operativa: Maestro Pedernera 1217</span>
+      </div>
 
-      <main className="contenedor stack">
-        <Aviso msg={error} />
-        {!data && !error && <p className="muted">Cargando tu ruta…</p>}
+      {/* BOTÓN DE FINALIZAR JORNADA EN HUB */}
+      <div style={{ marginBottom: '16px' }}>
+        <button
+          onClick={() => setModalCierreFinalViaje(true)}
+          style={{
+            width: '100%',
+            padding: '14px',
+            backgroundColor: '#0f172a',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '10px',
+            fontWeight: 'bold',
+            fontSize: '15px',
+            cursor: 'pointer',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+          }}
+        >
+          🏁 Finalizar Viaje del Día (Cierre de Odómetro en Hub)
+        </button>
+      </div>
 
-        {data && !data.chofer && (
-          <Aviso tipo="info" msg="Tu usuario no tiene un perfil de chofer. Pedile a logística que lo cree." />
-        )}
-        {data?.chofer && !ruta && (
-          <div className="card">
-            <h2>Sin ruta para hoy</h2>
-            <p className="muted">Logística todavía no te asignó una ruta. Volvé a abrir esta pantalla en unos minutos.</p>
-            <button className="btn block" onClick={cargar}>Actualizar</button>
+      {/* LISTA DE PEDIDOS ASIGNADOS CON GOOGLE MAPS */}
+      <Pedidos
+        pedidos={pedidosAsignados}
+        setPedidoACerrar={setPedidoACerrar}
+        setModalCierreAbierto={setModalCierreAbierto}
+        setModalIncidenciaAbierto={() => setModalIncidenciaAbierto(true)}
+      />
+
+      {/* MODAL REPORTAR INCIDENCIA */}
+      {modalIncidenciaAbierto && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px' }}>
+          <div style={{ backgroundColor: '#ffffff', padding: '24px', borderRadius: '12px', maxWidth: '400px', width: '100%' }}>
+            <h3 style={{ margin: '0 0 10px 0', color: '#b91c1c', fontSize: '18px' }}>🚨 Reportar Incidencia en Ruta</h3>
+            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '12px' }}>
+              Informa cualquier problema con el paquete, cliente ausente o demoras en la entrega.
+            </p>
+
+            <form onSubmit={registrarIncidencia}>
+              <textarea
+                rows="4"
+                placeholder="Ej: Cliente ausente en el domicilio o dirección incorrecta..."
+                value={motivoIncidencia}
+                onChange={(e) => setMotivoIncidencia(e.target.value)}
+                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', marginBottom: '16px' }}
+                required
+              />
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => setModalIncidenciaAbierto(false)}
+                  style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', background: '#dc2626', color: '#fff', fontWeight: 'bold', cursor: 'pointer' }}
+                >
+                  Enviar Alerta a Logística
+                </button>
+              </div>
+            </form>
           </div>
-        )}
-
-        {ruta && !data.checklist.completo && (
-          <Checklist ruta={ruta} items={data.checklist.items} onListo={cargar} />
-        )}
-
-        {ruta && data.checklist.completo && (
-          <>
-            {tab === 'pedidos' && <Pedidos data={data} onCambio={cargar} />}
-            {tab === 'viaticos' && <Viaticos data={data} onCambio={cargar} />}
-            {tab === 'incidencias' && <Incidencias data={data} onCambio={cargar} />}
-            {tab === 'km' && <Km ruta={ruta} onCambio={cargar} />}
-          </>
-        )}
-      </main>
-
-      {ruta && data.checklist.completo && (
-        <nav className="navinf" aria-label="Secciones">
-          {TABS.map(([k, t]) => (
-            <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{t}</button>
-          ))}
-        </nav>
+        </div>
       )}
-    </>
+
+    </div>
   );
 }
