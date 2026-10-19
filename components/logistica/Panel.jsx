@@ -22,8 +22,10 @@ export default function Panel({ email }) {
   const [importando, setImportando] = useState(false);
   
   const [pedidosBD, setPedidosBD] = useState([]);
-  const [pedidosAsignados, setPedidosAsignados] = useState([]);
-  const [pedidoSeleccionado, setPedidoSeleccionado] = useState('');
+  
+  // Mapeo de pedidos asignados por chofer (Permite gestionar múltiples choferes de forma independiente)
+  const [pedidosPorChofer, setPedidosPorChofer] = useState({});
+  const [pedidosSeleccionadosCheckbox, setPedidosSeleccionadosCheckbox] = useState([]);
 
   // Estado local para ocultar entregados en la vista de rutas
   const [pedidosArchivadosRuta, setPedidosArchivadosRuta] = useState([]);
@@ -226,7 +228,6 @@ export default function Panel({ email }) {
     }
   };
 
-  // Guardar o actualizar mantenimiento directo
   const guardarVehiculoMantenimiento = async (e) => {
     e.preventDefault();
     if (!nuevaPatenteMto || !nuevoKmActualMto) {
@@ -267,7 +268,6 @@ export default function Panel({ email }) {
     }
   };
 
-  // REGISTRAR / ACTUALIZAR CARGA DE COMBUSTIBLE
   const guardarCargaCombustible = (e) => {
     e.preventDefault();
     if (!patenteCombustible || !litrosCombustible || !importeCombustible) {
@@ -323,7 +323,6 @@ export default function Panel({ email }) {
     }
   };
 
-  // Exportar cargas de combustible a Excel
   const exportarCombustibleExcel = () => {
     const listaExportar = filtroPatenteCombustible
       ? cargasCombustibleBD.filter(c => c.patente === filtroPatenteCombustible)
@@ -345,7 +344,6 @@ export default function Panel({ email }) {
     XLSX.writeFile(workbook, `Reporte_Combustible_Flota_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
-  // Exportar mantenimiento a Excel
   const exportarMantenimientoExcel = () => {
     const listaExportar = filtroPatenteMto 
       ? flotaMantenimientoBD.filter(v => v.patente === filtroPatenteMto)
@@ -377,7 +375,6 @@ export default function Panel({ email }) {
     XLSX.writeFile(workbook, `Reporte_Mantenimiento_Flota_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
-  // Actualización rápida de KM / Horas
   const actualizarKmRapido = async (e) => {
     e.preventDefault();
     if (!patenteRapidaKm || !valorRapidoKm) {
@@ -420,7 +417,6 @@ export default function Panel({ email }) {
     }
   };
 
-  // Guardar Carnets de Choferes
   const guardarChoferCarnet = async (e) => {
     e.preventDefault();
     if (!nombreChoferCarnet || !dniChoferCarnet) {
@@ -471,7 +467,6 @@ export default function Panel({ email }) {
     setVencPsicofisico(chofer.vencimiento_psicofisico ? chofer.vencimiento_psicofisico.slice(0, 10) : '');
   };
 
-  // Cargar datos desde la BD
   const cargarDatosBD = async () => {
     try {
       const res = await fetch('/api/pedidos', { cache: 'no-store' });
@@ -597,54 +592,68 @@ export default function Panel({ email }) {
     setTimeout(() => {
       setEnviandoChecklist(false);
       setChecklistEnviado(true);
-      if (pedidosAsignados.length === 0) {
-        setPedidosAsignados(pedidosBD.length > 0 ? pedidosBD : pedidosEjemplo);
-      }
       alert('¡Checklist enviado correctamente!');
     }, 600);
   };
 
-  // FUNCIONALIDAD DE AÑADIR RUTA A LA HOJA DE TRABAJO
-  const agregarPedidoRuta = () => {
-    if (!pedidoSeleccionado) {
-      alert('Por favor selecciona un pedido del desplegable.');
-      return;
-    }
-    const listado = pedidosBD.length > 0 ? pedidosBD : pedidosEjemplo;
-    const pedidoObj = listado.find(p => p.id.toString() === pedidoSeleccionado.toString());
-
-    if (pedidoObj) {
-      if (pedidosAsignados.some(p => p.id === pedidoObj.id)) {
-        alert('Este pedido ya se encuentra agregado en la ruta actual.');
-        return;
-      }
-      setFlotaVehiculos(flotaVehiculos.map(v => v.dominio === vehiculoSeleccionado ? { ...v, estado: 'En Viaje' } : v));
-      setPedidosAsignados(prev => [...prev, pedidoObj]);
-      setPedidoSeleccionado('');
+  // --- SELECCIÓN MÚLTIPLE CON CHECKBOXES PARA EL CHOFER ACTUAL ---
+  const toggleSeleccionPedidoCheckbox = (idPedido) => {
+    if (pedidosSeleccionadosCheckbox.includes(idPedido)) {
+      setPedidosSeleccionadosCheckbox(pedidosSeleccionadosCheckbox.filter(id => id !== idPedido));
+    } else {
+      setPedidosSeleccionadosCheckbox([...pedidosSeleccionadosCheckbox, idPedido]);
     }
   };
 
-  // OPTIMIZACIÓN Y CÁLCULO DE KILOMETRAJE TOTAL
-  const optimizarRutaOrdenada = () => {
-    const listaAOptimar = pedidosAsignados.length > 0 ? pedidosAsignados : (pedidosBD.length > 0 ? pedidosBD : pedidosEjemplo);
-    if (listaAOptimar.length === 0) {
-      alert('Agrega al menos un pedido a la ruta para optimizar.');
+  const agregarPedidosSeleccionadosARuta = () => {
+    if (pedidosSeleccionadosCheckbox.length === 0) {
+      alert('Por favor, selecciona al menos un pedido marcando su casilla.');
       return;
     }
 
-    const rutaOrdenada = [...listaAOptimar].sort((a, b) => (a.kmDesdeCD || 100) - (b.kmDesdeCD || 100));
+    const listadoGlobal = pedidosBD.length > 0 ? pedidosBD : pedidosEjemplo;
+    const pedidosAgn = listadoGlobal.filter(p => pedidosSeleccionadosCheckbox.includes(p.id));
+
+    // Asignar al chofer seleccionado actualmente
+    const actualAsignados = pedidosPorChofer[choferSeleccionado] || [];
+    const combinados = [...actualAsignados, ...pedidosAgn.filter(nuevo => !actualAsignados.some(ex => ex.id === nuevo.id))];
+
+    setPedidosPorChofer({
+      ...pedidosPorChofer,
+      [choferSeleccionado]: combinados
+    });
+
+    // Cambiar estado del vehículo seleccionado a En Viaje
+    setFlotaVehiculos(flotaVehiculos.map(v => v.dominio === vehiculoSeleccionado ? { ...v, estado: 'En Viaje' } : v));
+    
+    // Limpiar selección de casillas
+    setPedidosSeleccionadosCheckbox([]);
+    alert(`¡Se asignaron ${pedidosAgn.length} pedidos al chofer ${choferSeleccionado} con éxito!`);
+  };
+
+  const optimizarRutaOrdenada = () => {
+    const pedidosChoferActual = pedidosPorChofer[choferSeleccionado] || [];
+    if (pedidosChoferActual.length === 0) {
+      alert('Agrega al menos un pedido a la ruta de este chofer para optimizar.');
+      return;
+    }
+
+    const rutaOrdenada = [...pedidosChoferActual].sort((a, b) => (a.kmDesdeCD || 100) - (b.kmDesdeCD || 100));
     const kmMaximo = Math.max(...rutaOrdenada.map(p => p.kmDesdeCD || 150));
     const kmTotalCalculado = Math.round(kmMaximo * 2.15);
     
-    setPedidosAsignados(rutaOrdenada);
+    setPedidosPorChofer({
+      ...pedidosPorChofer,
+      [choferSeleccionado]: rutaOrdenada
+    });
     setKmTotalRuta(kmTotalCalculado);
 
-    alert(`¡Ruta optimizada!\nKilometraje total estimado: ${kmTotalCalculado} km.`);
+    alert(`¡Ruta de ${choferSeleccionado} optimizada!\nKilometraje total estimado: ${kmTotalCalculado} km.`);
   };
 
   const enviarRutaWhatsApp = () => {
-    const listaAEnviar = pedidosAsignados.length > 0 ? pedidosAsignados : (pedidosBD.length > 0 ? pedidosBD : pedidosEjemplo);
-    if (listaAEnviar.length === 0) {
+    const pedidosChoferActual = pedidosPorChofer[choferSeleccionado] || [];
+    if (pedidosChoferActual.length === 0) {
       alert('No hay pedidos asignados en la ruta para enviar.');
       return;
     }
@@ -656,7 +665,7 @@ export default function Panel({ email }) {
     mensaje += `*Recorrido Estimado:* ${kmTotalRuta || 830} KM\n\n`;
     mensaje += `📍 *PARADAS Y PEDIDOS:*\n`;
 
-    listaAEnviar.forEach((p, index) => {
+    pedidosChoferActual.forEach((p, index) => {
       mensaje += `\n*${index + 1}. Pedido #${p.id}* - ${p.cliente || p.Cliente}\n`;
       mensaje += `📍 Dirección: ${p.direccion || p.Direccion} (${p.provincia || 'Salta'})\n`;
       mensaje += `📦 Bultos: ${p.bultos || 1}\n`;
@@ -739,8 +748,12 @@ export default function Panel({ email }) {
       fecha_cierre: new Date().toISOString()
     } : p);
 
-    setPedidosAsignados(actualizarLista(pedidosAsignados.length > 0 ? pedidosAsignados : pedidosEjemplo));
-    setPedidosBD(actualizarLista(pedidosBD.length > 0 ? pedidosBD : pedidosEjemplo));
+    const actualChoferArr = pedidosPorChofer[choferSeleccionado] || [];
+    setPedidosPorChofer({
+      ...pedidosPorChofer,
+      [choferSeleccionado]: actualizarLista(actualChoferArr)
+    });
+    setPedidosBD(actualizarLista(pedidosBD));
 
     setModalCierreAbierto(false);
     setPedidoACerrar(null);
@@ -788,7 +801,7 @@ export default function Panel({ email }) {
   };
 
   const exportarReporteExcel = () => {
-    const listaReporte = pedidosBD.length > 0 ? pedidosBD : (pedidosAsignados.length > 0 ? pedidosAsignados : pedidosEjemplo);
+    const listaReporte = pedidosBD.length > 0 ? pedidosBD : pedidosEjemplo;
     const datosExportar = listaReporte.map(p => ({
       'Fecha': p.fecha_cierre ? new Date(p.fecha_cierre).toLocaleDateString() : (p.fecha_programada ? new Date(p.fecha_programada).toLocaleDateString() : '-'),
       'N° Pedido': p.id,
@@ -812,8 +825,16 @@ export default function Panel({ email }) {
     window.location.href = '/login';
   };
 
-  const listaAOrganizar = pedidosAsignados.length > 0 ? pedidosAsignados : (pedidosBD.length > 0 ? pedidosBD : pedidosEjemplo);
-  const listaMostrada = listaAOrganizar.filter(p => !pedidosArchivadosRuta.includes(p.id));
+  // Obtener todos los IDs de pedidos que YA han sido asignados a CUALQUIER chofer
+  const todosPedidosAsignadosIDs = Object.values(pedidosPorChofer).flat().map(p => p.id);
+  
+  // Lista global de pedidos disponibles que NO han sido asignados a ningún chofer todavía
+  const listaPedidosDisponibles = (pedidosBD.length > 0 ? pedidosBD : pedidosEjemplo).filter(
+    p => !todosPedidosAsignadosIDs.includes(p.id)
+  );
+
+  const pedidosChoferActual = pedidosPorChofer[choferSeleccionado] || [];
+  const listaMostrada = pedidosChoferActual.filter(p => !pedidosArchivadosRuta.includes(p.id));
   const listaReportes = pedidosBD.length > 0 ? pedidosBD : [];
 
   const vehiculosOrdenadosCostos = [...flotaMantenimientoBD].sort((a, b) => Number(b.costo_mantenimiento || 0) - Number(a.costo_mantenimiento || 0));
@@ -986,18 +1007,15 @@ export default function Panel({ email }) {
         {/* RESUMEN EJECUTIVO */}
         {!esChofer && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px', marginBottom: '24px' }}>
-            
             <div style={{ backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-              <h4 style={{ margin: '0 0 10px 0', fontSize: '15px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                💰 Top Vehículos con Mayores Costos
-              </h4>
+              <h4 style={{ margin: '0 0 10px 0', fontSize: '15px', color: '#1e293b' }}>💰 Top Vehículos con Mayores Costos</h4>
               {vehiculosOrdenadosCostos.length === 0 ? (
                 <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>Sin registros de costos aún.</p>
               ) : (
                 <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px', color: '#334155' }}>
                   {vehiculosOrdenadosCostos.slice(0, 3).map((v, i) => (
                     <li key={i} style={{ marginBottom: '6px' }}>
-                      <strong style={{ fontFamily: 'monospace' }}>{v.patente}</strong> ({v.modelo || 'Flota'}): <span style={{ color: '#b91c1c', fontWeight: 'bold' }}>${Number(v.costo_mantenimiento || 0).toLocaleString()}</span>
+                      <strong style={{ fontFamily: 'monospace' }}>{v.patente}</strong>: <span style={{ color: '#b91c1c', fontWeight: 'bold' }}>${Number(v.costo_mantenimiento || 0).toLocaleString()}</span>
                     </li>
                   ))}
                 </ul>
@@ -1005,39 +1023,32 @@ export default function Panel({ email }) {
             </div>
 
             <div style={{ backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-              <h4 style={{ margin: '0 0 10px 0', fontSize: '15px', color: '#991b1b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                ⚠️ Alertas de Vencimiento de Carnets ({choferesEnAlerta.length})
-              </h4>
+              <h4 style={{ margin: '0 0 10px 0', fontSize: '15px', color: '#991b1b' }}>⚠️ Alertas de Vencimiento de Carnets ({choferesEnAlerta.length})</h4>
               {choferesEnAlerta.length === 0 ? (
-                <p style={{ fontSize: '13px', color: '#166534', margin: 0, fontWeight: 'bold' }}>✅ Todos los choferes al día con sus carnets.</p>
+                <p style={{ fontSize: '13px', color: '#166534', margin: 0, fontWeight: 'bold' }}>✅ Todos los choferes al día.</p>
               ) : (
                 <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px', color: '#991b1b' }}>
                   {choferesEnAlerta.slice(0, 3).map((c, i) => (
-                    <li key={i} style={{ marginBottom: '6px' }}>
-                      <strong>{c.nombre_chofer}</strong> (DNI: {c.dni}) - Requiere renovación próxima.
-                    </li>
+                    <li key={i} style={{ marginBottom: '6px' }}><strong>{c.nombre_chofer}</strong> - Próximo a vencer.</li>
                   ))}
                 </ul>
               )}
             </div>
 
             <div style={{ backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-              <h4 style={{ margin: '0 0 10px 0', fontSize: '15px', color: '#15803d', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                ⛽ Top Consumo de Combustible
-              </h4>
+              <h4 style={{ margin: '0 0 10px 0', fontSize: '15px', color: '#15803d' }}>⛽ Top Consumo de Combustible</h4>
               {resumenCombustibleAgrupado.length === 0 ? (
                 <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>Sin cargas registradas.</p>
               ) : (
                 <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px', color: '#334155' }}>
                   {resumenCombustibleAgrupado.slice(0, 3).map((c, i) => (
                     <li key={i} style={{ marginBottom: '6px' }}>
-                      <strong style={{ fontFamily: 'monospace' }}>{c.patente}</strong> ({c.modelo}): <span style={{ color: '#15803d', fontWeight: 'bold' }}>{c.totalLitros} Lts</span> (${c.totalImporte.toLocaleString()})
+                      <strong style={{ fontFamily: 'monospace' }}>{c.patente}</strong>: <span style={{ color: '#15803d', fontWeight: 'bold' }}>{c.totalLitros} Lts</span>
                     </li>
                   ))}
                 </ul>
               )}
             </div>
-
           </div>
         )}
 
@@ -1047,9 +1058,7 @@ export default function Panel({ email }) {
             <form onSubmit={enviarChecklistVehiculo}>
               <div style={{ borderLeft: '4px solid #f59e0b', backgroundColor: '#fffbeb', padding: '16px', borderRadius: '6px', marginBottom: '20px' }}>
                 <h3 style={{ margin: '0 0 6px 0', fontSize: '16px', color: '#92400e' }}>Control del vehículo</h3>
-                <p style={{ margin: 0, fontSize: '13px', color: '#b45309' }}>
-                  Complétalo antes de salir desde Maestro Pedernera 1217. Hasta que lo envíes no verás los pedidos del día.
-                </p>
+                <p style={{ margin: 0, fontSize: '13px', color: '#b45309' }}>Complétalo antes de salir desde Maestro Pedernera 1217.</p>
               </div>
 
               <div style={{ marginBottom: '20px' }}>
@@ -1111,32 +1120,28 @@ export default function Panel({ email }) {
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span style={{ backgroundColor: '#0f172a', color: '#ffffff', fontFamily: 'sans-serif', fontSize: '13px', fontWeight: 'bold', padding: '5px 10px', borderRadius: '6px' }}>
+                  <span style={{ backgroundColor: '#0f172a', color: '#ffffff', fontSize: '13px', fontWeight: 'bold', padding: '5px 10px', borderRadius: '6px' }}>
                     {vehiculoSeleccionado}
                   </span>
                   <div>
                     <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, color: '#1e293b' }}>
                       {esChofer ? 'Juan Pérez' : choferSeleccionado}
                     </h2>
-                    <span style={{ fontSize: '12px', color: '#64748b' }}>Transporte Asignado</span>
+                    <span style={{ fontSize: '12px', color: '#64748b' }}>Ruta activa para este chofer</span>
                   </div>
                 </div>
                 
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  {!esChofer && (
-                    <button 
-                      onClick={() => {
-                        const idsEntregados = (pedidosBD.length > 0 ? pedidosBD : pedidosAsignados)
-                          .filter(p => p.estado_entrega === 'Entregado')
-                          .map(p => p.id);
-                        setPedidosArchivadosRuta([...new Set([...pedidosArchivadosRuta, ...idsEntregados])]);
-                      }}
-                      style={{ padding: '8px 14px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
-                    >
-                      🗑️ Archivar Entregados (Limpiar Ruta)
-                    </button>
-                  )}
-                </div>
+                {!esChofer && (
+                  <button 
+                    onClick={() => {
+                      const idsEntregados = pedidosChoferActual.filter(p => p.estado_entrega === 'Entregado').map(p => p.id);
+                      setPedidosArchivadosRuta([...new Set([...pedidosArchivadosRuta, ...idsEntregados])]);
+                    }}
+                    style={{ padding: '8px 14px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+                  >
+                    🗑️ Archivar Entregados (Limpiar Ruta)
+                  </button>
+                )}
               </div>
 
               <div style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1149,7 +1154,7 @@ export default function Panel({ email }) {
 
               <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '16px', marginBottom: '16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                  <h4 style={{ margin: 0, fontSize: '14px', color: '#334155' }}>Paradas Asignadas:</h4>
+                  <h4 style={{ margin: 0, fontSize: '14px', color: '#334155' }}>Paradas Asignadas a {choferSeleccionado}:</h4>
                   {esChofer && (
                     <button 
                       onClick={() => setModalCierreFinalViaje(true)}
@@ -1160,78 +1165,104 @@ export default function Panel({ email }) {
                   )}
                 </div>
 
-                {listaMostrada.map((p, idx) => {
-                  const telefonoCliente = p.telefono || p.celular || '3874556677';
-
-                  return (
-                    <div key={idx} style={{ marginBottom: '12px', padding: '12px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                          <strong style={{ fontSize: '15px' }}>#{p.id} - {p.cliente || p.Cliente || 'Cliente'}</strong> ({p.provincia || 'Salta'})
-                          
-                          <a 
-                            href={`tel:${telefonoCliente}`} 
-                            title={`Llamar (${telefonoCliente})`}
-                            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', backgroundColor: '#dcfce7', color: '#15803d', borderRadius: '50%', textDecoration: 'none', fontSize: '14px' }}
-                          >
-                            📞
-                          </a>
-
-                          {!esChofer && (
-                            <button 
-                              onClick={() => {
-                                if (confirm(`¿Deseas quitar el pedido #${p.id} de la ruta activa?`)) {
-                                  setPedidosArchivadosRuta([...pedidosArchivadosRuta, p.id]);
-                                  setPedidosAsignados(pedidosAsignados.filter(item => item.id !== p.id));
-                                }
-                              }}
-                              title="Quitar pedido"
-                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', backgroundColor: '#fee2e2', color: '#b91c1c', border: 'none', borderRadius: '50%', cursor: 'pointer', fontSize: '14px' }}
+                {listaMostrada.length === 0 ? (
+                  <p style={{ fontSize: '13px', color: '#64748b', fontStyle: 'italic', marginBottom: '15px' }}>
+                    No hay paradas asignadas todavía para este chofer. Selecciona pedidos abajo para agregarlos.
+                  </p>
+                ) : (
+                  listaMostrada.map((p, idx) => {
+                    const telefonoCliente = p.telefono || p.celular || '3874556677';
+                    return (
+                      <div key={idx} style={{ marginBottom: '12px', padding: '12px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                            <strong style={{ fontSize: '15px' }}>#{p.id} - {p.cliente || p.Cliente || 'Cliente'}</strong> ({p.provincia || 'Salta'})
+                            
+                            <a 
+                              href={`tel:${telefonoCliente}`} 
+                              title={`Llamar (${telefonoCliente})`}
+                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', backgroundColor: '#dcfce7', color: '#15803d', borderRadius: '50%', textDecoration: 'none', fontSize: '14px' }}
                             >
-                              🗑️
-                            </button>
-                          )}
+                              📞
+                            </a>
+
+                            {!esChofer && (
+                              <button 
+                                onClick={() => {
+                                  if (confirm(`¿Deseas quitar el pedido #${p.id} de la ruta de este chofer?`)) {
+                                    const actualArr = pedidosPorChofer[choferSeleccionado] || [];
+                                    setPedidosPorChofer({
+                                      ...pedidosPorChofer,
+                                      [choferSeleccionado]: actualArr.filter(item => item.id !== p.id)
+                                    });
+                                  }
+                                }}
+                                title="Quitar pedido"
+                                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', backgroundColor: '#fee2e2', color: '#b91c1c', border: 'none', borderRadius: '50%', cursor: 'pointer', fontSize: '14px' }}
+                              >
+                                🗑️
+                              </button>
+                            )}
+                          </div>
+
+                          📍 Dirección: <strong>{p.direccion || p.Direccion}</strong> | 📦 Bultos: <strong>{p.bultos || 1}</strong>
+                          <br/>Estado: <strong style={{ 
+                            color: p.estado_entrega === 'Entregado' ? '#166534' : '#854d0e',
+                            backgroundColor: p.estado_entrega === 'Entregado' ? '#dcfce7' : '#fef9c3',
+                            padding: '2px 6px', borderRadius: '4px', fontSize: '12px'
+                          }}>{p.estado_entrega || 'Pendiente'}</strong>
                         </div>
-
-                        📍 Dirección: <strong>{p.direccion || p.Direccion}</strong> | 📦 Bultos: <strong>{p.bultos || 1}</strong>
-                        <br/>Estado: <strong style={{ 
-                          color: p.estado_entrega === 'Entregado' ? '#166534' : '#854d0e',
-                          backgroundColor: p.estado_entrega === 'Entregado' ? '#dcfce7' : '#fef9c3',
-                          padding: '2px 6px', borderRadius: '4px', fontSize: '12px'
-                        }}>{p.estado_entrega || 'Pendiente'}</strong>
+                        
+                        {esChofer && (
+                          <button 
+                            onClick={() => { setPedidoACerrar(p); setModalCierreAbierto(true); }}
+                            style={{ padding: '8px 14px', backgroundColor: '#0284c7', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
+                          >
+                            📝 Cerrar Entrega / Viáticos
+                          </button>
+                        )}
                       </div>
-                      
-                      {esChofer && (
-                        <button 
-                          onClick={() => { setPedidoACerrar(p); setModalCierreAbierto(true); }}
-                          style={{ padding: '8px 14px', backgroundColor: '#0284c7', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
-                        >
-                          📝 Cerrar Entrega / Viáticos
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
 
+                {/* NUEVO: SELECCIÓN MÚLTIPLE CON CHECKBOXES */}
                 {!esChofer && (
-                  <div style={{ display: 'flex', gap: '12px', marginTop: '15px' }}>
-                    <select 
-                      value={pedidoSeleccionado}
-                      onChange={(e) => setPedidoSeleccionado(e.target.value)}
-                      style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: '8px', padding: '10px', fontSize: '14px', backgroundColor: '#fff' }}
-                    >
-                      <option value="">Seleccionar pedido para agregar a la ruta...</option>
-                      {(pedidosBD.length > 0 ? pedidosBD : pedidosEjemplo).map((p) => (
-                        <option key={p.id} value={p.id}>
-                          #{p.id} - {p.cliente || p.Cliente} ({p.provincia || 'Salta'}) | {p.direccion || p.Direccion}
-                        </option>
-                      ))}
-                    </select>
+                  <div style={{ marginTop: '20px', padding: '16px', backgroundColor: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '10px' }}>
+                    <h5 style={{ margin: '0 0 10px 0', fontSize: '14px', color: '#0f172a' }}>
+                      ☑️ Seleccionar envíos pendientes para asignar a <strong>{choferSeleccionado}</strong>:
+                    </h5>
+
+                    {listaPedidosDisponibles.length === 0 ? (
+                      <p style={{ fontSize: '12px', color: '#64748b', fontStyle: 'italic', margin: 0 }}>
+                        No hay más pedidos disponibles (todos ya fueron asignados a choferes o importados).
+                      </p>
+                    ) : (
+                      <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: '#fff', padding: '8px', marginBottom: '12px' }}>
+                        {listaPedidosDisponibles.map((p) => {
+                          const estaMarcado = pedidosSeleccionadosCheckbox.includes(p.id);
+                          return (
+                            <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 8px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', fontSize: '13px' }}>
+                              <input 
+                                type="checkbox" 
+                                checked={estaMarcado}
+                                onChange={() => toggleSeleccionPedidoCheckbox(p.id)}
+                                style={{ width: '16px', height: '16px', accentColor: '#047857', cursor: 'pointer' }}
+                              />
+                              <div style={{ flex: 1 }}>
+                                <strong>#{p.id} - {p.cliente || p.Cliente}</strong> ({p.provincia || 'Salta'}) | 📍 {p.direccion || p.Direccion} (Bultos: {p.bultos || 1})
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+
                     <button 
-                      onClick={agregarPedidoRuta} 
-                      style={{ padding: '10px 18px', backgroundColor: '#e2e8f0', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', color: '#1e293b' }}
+                      onClick={agregarPedidosSeleccionadosARuta} 
+                      style={{ padding: '10px 18px', backgroundColor: '#047857', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}
                     >
-                      Añadir a Ruta
+                      ➕ Añadir Ruta con los pedidos seleccionados
                     </button>
                   </div>
                 )}
@@ -1318,7 +1349,6 @@ export default function Panel({ email }) {
             </h3>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-              
               <div style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                 <h4 style={{ margin: '0 0 15px 0', color: '#064e3b', fontSize: '16px' }}>➕ Registrar Nuevo Personal</h4>
                 <form onSubmit={agregarPersonal}>
@@ -1443,11 +1473,9 @@ export default function Panel({ email }) {
                   </button>
                 </form>
               </div>
-
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
-              
               <div>
                 <h4 style={{ margin: '0 0 10px 0', color: '#1e293b' }}>👥 Plantel Registrado</h4>
                 <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
@@ -1513,9 +1541,7 @@ export default function Panel({ email }) {
                   </table>
                 </div>
               </div>
-
             </div>
-
           </div>
         )}
 
@@ -1707,7 +1733,7 @@ export default function Panel({ email }) {
               ⛽ Registro y Control de Rendimiento de Combustible
             </h3>
             <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px' }}>
-              Carga los consumos de combustible por vehículo/unidad para analizar el gasto e identificaciones de alto consumo.
+              Carga los consumos de combustible por vehículo/unidad para analizar el gasto.
             </p>
 
             <div style={{ backgroundColor: idCargaEditando ? '#fef3c7' : '#f0fdf4', border: `1px solid ${idCargaEditando ? '#fde68a' : '#bbf7d0'}`, padding: '20px', borderRadius: '10px', marginBottom: '25px' }}>
@@ -1842,20 +1868,8 @@ export default function Panel({ email }) {
                         <td style={{ padding: '10px' }}>{c.kmLectura}</td>
                         <td style={{ padding: '10px', color: '#0369a1', fontWeight: 'bold' }}>${(c.importe / (c.litros || 1)).toFixed(2)}/L</td>
                         <td style={{ padding: '10px', textAlign: 'center', display: 'flex', justifyContent: 'center', gap: '6px' }}>
-                          <button 
-                            onClick={() => editarCargaCombustible(c)}
-                            title="Modificar registro"
-                            style={{ backgroundColor: '#fef3c7', color: '#92400e', border: 'none', borderRadius: '4px', padding: '5px 8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
-                          >
-                            ✏️
-                          </button>
-                          <button 
-                            onClick={() => eliminarCargaCombustible(c.id)}
-                            title="Borrar registro"
-                            style={{ backgroundColor: '#fee2e2', color: '#b91c1c', border: 'none', borderRadius: '4px', padding: '5px 8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
-                          >
-                            🗑️
-                          </button>
+                          <button onClick={() => editarCargaCombustible(c)} style={{ backgroundColor: '#fef3c7', color: '#92400e', border: 'none', borderRadius: '4px', padding: '5px 8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>✏️</button>
+                          <button onClick={() => eliminarCargaCombustible(c.id)} style={{ backgroundColor: '#fee2e2', color: '#b91c1c', border: 'none', borderRadius: '4px', padding: '5px 8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>🗑️</button>
                         </td>
                       </tr>
                     ))
@@ -1863,7 +1877,6 @@ export default function Panel({ email }) {
                 </tbody>
               </table>
             </div>
-
           </div>
         )}
 
@@ -1873,80 +1886,38 @@ export default function Panel({ email }) {
             <h3 style={{ margin: '0 0 10px 0', fontSize: '20px', fontWeight: 'bold', color: '#0f172a' }}>
               🪪 Gestión de Carnets y Documentación Obligatoria de Choferes
             </h3>
-            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px' }}>
-              Control de vencimientos para Carnet de Conducir, Cargas Peligrosas, Cargas Generales y Exámen Psicofísico.
-            </p>
+            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px' }}>Control de vencimientos.</p>
 
             <div style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '25px' }}>
               <h4 style={{ margin: '0 0 15px 0', color: '#0369a1', fontSize: '16px' }}>📝 Registrar / Actualizar Vencimientos de Carnets</h4>
               <form onSubmit={guardarChoferCarnet} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '15px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Nombre Chofer:</label>
-                  <input 
-                    type="text" 
-                    placeholder="Ej: Juan Pérez" 
-                    value={nombreChoferCarnet} 
-                    onChange={(e) => setNombreChoferCarnet(e.target.value)} 
-                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                    required 
-                  />
+                  <input type="text" placeholder="Ej: Juan Pérez" value={nombreChoferCarnet} onChange={(e) => setNombreChoferCarnet(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} required />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>DNI:</label>
-                  <input 
-                    type="text" 
-                    placeholder="Ej: 34567890" 
-                    value={dniChoferCarnet} 
-                    onChange={(e) => setDniChoferCarnet(e.target.value)} 
-                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                    required 
-                  />
+                  <input type="text" placeholder="Ej: 34567890" value={dniChoferCarnet} onChange={(e) => setDniChoferCarnet(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} required />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Teléfono:</label>
-                  <input 
-                    type="text" 
-                    placeholder="Ej: 3874556677" 
-                    value={telChoferCarnet} 
-                    onChange={(e) => setTelChoferCarnet(e.target.value)} 
-                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
-                  />
+                  <input type="text" placeholder="Ej: 3874556677" value={telChoferCarnet} onChange={(e) => setTelChoferCarnet(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Carnet Conducir (Venc.):</label>
-                  <input 
-                    type="date" 
-                    value={vencConducir} 
-                    onChange={(e) => setVencConducir(e.target.value)} 
-                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
-                  />
+                  <input type="date" value={vencConducir} onChange={(e) => setVencConducir(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Cargas Peligrosas (Venc.):</label>
-                  <input 
-                    type="date" 
-                    value={vencPeligrosas} 
-                    onChange={(e) => setVencPeligrosas(e.target.value)} 
-                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
-                  />
+                  <input type="date" value={vencPeligrosas} onChange={(e) => setVencPeligrosas(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Cargas Generales (Venc.):</label>
-                  <input 
-                    type="date" 
-                    value={vencGenerales} 
-                    onChange={(e) => setVencGenerales(e.target.value)} 
-                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
-                  />
+                  <input type="date" value={vencGenerales} onChange={(e) => setVencGenerales(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Exámen Psicofísico (Venc.):</label>
-                  <input 
-                    type="date" 
-                    value={vencPsicofisico} 
-                    onChange={(e) => setVencPsicofisico(e.target.value)} 
-                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
-                  />
+                  <input type="date" value={vencPsicofisico} onChange={(e) => setVencPsicofisico(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
                 </div>
                 <div style={{ display: 'flex', alignItems: 'flex-end' }}>
                   <button type="submit" style={{ width: '100%', padding: '10px', backgroundColor: '#0369a1', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
@@ -1979,78 +1950,44 @@ export default function Panel({ email }) {
                       <td style={{ padding: '10px' }}>{c.vencimiento_cargas_generales ? c.vencimiento_cargas_generales.slice(0, 10) : '-'}</td>
                       <td style={{ padding: '10px' }}>{c.vencimiento_psicofisico ? c.vencimiento_psicofisico.slice(0, 10) : '-'}</td>
                       <td style={{ padding: '10px', textAlign: 'center' }}>
-                        <button 
-                          type="button"
-                          onClick={() => editarChoferCarnet(c)}
-                          title="Modificar o corregir fechas"
-                          style={{ backgroundColor: '#fef3c7', color: '#92400e', border: 'none', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
-                        >
-                          ✏️ Modificar
-                        </button>
+                        <button type="button" onClick={() => editarChoferCarnet(c)} style={{ backgroundColor: '#fef3c7', color: '#92400e', border: 'none', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>✏️ Modificar</button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-
           </div>
         )}
 
-        {/* PESTAÑA 7: ACTUALIZAR KM / HORAS DE CUALQUIER TRANSPORTE */}
+        {/* PESTAÑA 7: ACTUALIZAR KM */}
         {pestanaActiva === 'actualizarKm' && !esChofer && (
           <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
             <h3 style={{ margin: '0 0 10px 0', fontSize: '20px', fontWeight: 'bold', color: '#0f172a' }}>
               ⏱️ Actualizar Lectura de Transporte (KM / Horas)
             </h3>
-            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px' }}>
-              Selecciona cualquier vehículo/autoelevador de la flota e ingresa su nuevo odómetro/horómetro. La actualización se propagará a todas las demás pestañas automáticamente.
-            </p>
+            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px' }}>Selecciona cualquier vehículo.</p>
 
             <div style={{ backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', padding: '20px', maxWidth: '650px' }}>
               <form onSubmit={actualizarKmRapido}>
-                
                 <div style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#92400e', marginBottom: '6px' }}>
-                    Seleccionar Unidad / Patente:
-                  </label>
-                  <select 
-                    value={patenteRapidaKm} 
-                    onChange={(e) => setPatenteRapidaKm(e.target.value)}
-                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', backgroundColor: '#fff', fontWeight: 'bold' }}
-                    required
-                  >
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#92400e', marginBottom: '6px' }}>Seleccionar Unidad / Patente:</label>
+                  <select value={patenteRapidaKm} onChange={(e) => setPatenteRapidaKm(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', backgroundColor: '#fff', fontWeight: 'bold' }} required>
                     <option value="">-- Selecciona una Patente --</option>
                     {listaTodasPatentes.map((pat, idx) => {
                       const obj = flotaVehiculos.find(v => v.dominio === pat) || flotaMantenimientoBD.find(v => v.patente === pat);
                       const lectura = obj?.km || obj?.horas || obj?.km_actual || 0;
-                      return (
-                        <option key={idx} value={pat}>
-                          🚘 {pat} ({obj?.modelo || 'Unidad'}) - Actual: {lectura}
-                        </option>
-                      );
+                      return <option key={idx} value={pat}>🚘 {pat} ({obj?.modelo || 'Unidad'}) - Actual: {lectura}</option>;
                     })}
                   </select>
                 </div>
 
                 <div style={{ marginBottom: '20px' }}>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#92400e', marginBottom: '6px' }}>
-                    Nueva Lectura (KM / Horas de Trabajo):
-                  </label>
-                  <input 
-                    type="number" 
-                    placeholder="Ej: 125000 o 1300" 
-                    value={valorRapidoKm} 
-                    onChange={(e) => setValorRapidoKm(e.target.value)} 
-                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '15px', fontWeight: 'bold' }}
-                    required 
-                  />
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#92400e', marginBottom: '6px' }}>Nueva Lectura (KM / Horas de Trabajo):</label>
+                  <input type="number" placeholder="Ej: 125000 o 1300" value={valorRapidoKm} onChange={(e) => setValorRapidoKm(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '15px', fontWeight: 'bold' }} required />
                 </div>
 
-                <button 
-                  type="submit" 
-                  style={{ width: '100%', padding: '12px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer' }}
-                >
+                <button type="submit" style={{ width: '100%', padding: '12px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer' }}>
                   ⚡ Actualizar Lectura en Todas las Pestañas
                 </button>
               </form>
@@ -2065,9 +2002,7 @@ export default function Panel({ email }) {
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '12px', maxWidth: '550px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: 'bold' }}>Cierre de Parada y Viáticos</h3>
-            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '15px' }}>
-              Pedido #{pedidoACerrar?.id} - Cliente: <strong>{pedidoACerrar?.cliente || pedidoACerrar?.Cliente}</strong>
-            </p>
+            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '15px' }}>Pedido #{pedidoACerrar?.id} - Cliente: <strong>{pedidoACerrar?.cliente || pedidoACerrar?.Cliente}</strong></p>
 
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>Estado de Entrega:</label>
             <select value={estadoEntrega} onChange={(e) => setEstadoEntrega(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '12px', fontSize: '14px' }}>
@@ -2089,20 +2024,10 @@ export default function Panel({ email }) {
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '12px', maxWidth: '450px', width: '90%' }}>
             <h3 style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: 'bold' }}>🏁 Cierre Final del Viaje (Regreso Hub)</h3>
-            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '15px' }}>
-              Ingresa el kilometraje final del vehículo al retornar a Maestro Pedernera 1217.
-            </p>
+            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '15px' }}>Ingresa el kilometraje final.</p>
 
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px', color: '#1e293b' }}>
-              Kilometraje Final (KM):
-            </label>
-            <input 
-              type="number" 
-              placeholder="Ej: 124890" 
-              value={kmFinalViajeSalta} 
-              onChange={(e) => setKmFinalViajeSalta(e.target.value)} 
-              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', marginBottom: '20px' }} 
-            />
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px', color: '#1e293b' }}>Kilometraje Final (KM):</label>
+            <input type="number" placeholder="Ej: 124890" value={kmFinalViajeSalta} onChange={(e) => setKmFinalViajeSalta(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', marginBottom: '20px' }} />
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button onClick={() => setModalCierreFinalViaje(false)} style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}>Cancelar</button>
