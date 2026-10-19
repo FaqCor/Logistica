@@ -1,122 +1,150 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
-import { api, fechaCorta, money } from '@/components/api';
-import FormSimple from '@/components/FormSimple';
-import { Aviso, Patente } from '@/components/ui';
+import React from 'react';
 
-function Mantenimientos({ maestros }) {
-  const [lista, setLista] = useState([]);
-  const [hecho, setHecho] = useState(null); // id del mantenimiento que se está cerrando
-  const [error, setError] = useState('');
-  const cargar = useCallback(async () => {
-    try { setLista((await api('/api/logistica/mantenimientos')).mantenimientos); } catch (e) { setError(e.message); }
-  }, []);
-  useEffect(() => { cargar(); }, [cargar]);
-
+export default function TabFlota({
+  personalEmpresa,
+  flotaVehiculos,
+  nuevoNombrePersonal,
+  setNuevoNombrePersonal,
+  nuevoRolPersonal,
+  setNuevoRolPersonal,
+  nuevoEmailPersonal,
+  setNuevoEmailPersonal,
+  nuevoTelPersonal,
+  setNuevoTelPersonal,
+  agregarPersonal,
+  eliminarPersonal,
+  nuevoDominioVehiculo,
+  setNuevoDominioVehiculo,
+  nuevoModeloVehiculo,
+  setNuevoModeloVehiculo,
+  nuevoKmVehiculo,
+  setNuevoKmVehiculo,
+  tipoMedicionVehiculo,
+  setTipoMedicionVehiculo,
+  nuevasHorasVehiculo,
+  setNuevasHorasVehiculo,
+  agregarVehiculo,
+  eliminarVehiculo
+}) {
   return (
-    <div className="card stack">
-      <h2>Mantenimientos</h2>
-      <details>
-        <summary>Programar mantenimiento</summary>
-        <div style={{ marginTop: 10 }}>
-          <FormSimple
-            boton="Programar"
-            campos={[
-              { k: 'patente', label: 'Vehículo', req: true, options: maestros.vehiculos.map((v) => [v.patente, v.patente]) },
-              { k: 'tipo', label: 'Tipo', req: true, options: [['preventivo', 'Preventivo'], ['correctivo', 'Correctivo']] },
-              { k: 'descripcion', label: 'Qué se hace', req: true },
-              { k: 'fecha_programada', label: 'Fecha', type: 'date' },
-              { k: 'km_programado', label: 'O al llegar a (km)', type: 'number' },
-            ]}
-            onSubmit={async (v) => { await api('/api/logistica/mantenimientos', { method: 'POST', body: v }); await cargar(); }}
-          />
+    <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+      <h3 style={{ margin: '0 0 20px 0', fontSize: '20px', fontWeight: 'bold', color: '#0f172a' }}>🏢 Administración de Flota y Personal</h3>
+      
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+        <div style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+          <h4 style={{ margin: '0 0 15px 0', color: '#064e3b', fontSize: '16px' }}>➕ Registrar Nuevo Personal</h4>
+          <form onSubmit={agregarPersonal}>
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Nombre y Apellido:</label>
+              <input type="text" placeholder="Ej: Marcos Ruiz" value={nuevoNombrePersonal} onChange={(e) => setNuevoNombrePersonal(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} required />
+            </div>
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Rol:</label>
+              <select value={nuevoRolPersonal} onChange={(e) => setNuevoRolPersonal(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#fff' }}>
+                <option value="Chofer">Chofer</option>
+                <option value="Ayudante">Ayudante</option>
+              </select>
+            </div>
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Correo:</label>
+              <input type="email" placeholder="correo@dmmaestro.com" value={nuevoEmailPersonal} onChange={(e) => setNuevoEmailPersonal(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+            </div>
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Teléfono:</label>
+              <input type="text" placeholder="387..." value={nuevoTelPersonal} onChange={(e) => setNuevoTelPersonal(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+            </div>
+            <button type="submit" style={{ width: '100%', padding: '10px', backgroundColor: '#047857', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Guardar Personal</button>
+          </form>
         </div>
-      </details>
-      <Aviso msg={error} />
-      <div className="scroll-x">
-        <table className="tabla">
-          <thead><tr><th>Patente</th><th>Trabajo</th><th>Cuándo</th><th>Estado</th><th className="der">Costo</th><th></th></tr></thead>
-          <tbody>
-            {lista.length === 0 && <tr><td colSpan="6" className="muted">No hay mantenimientos cargados.</td></tr>}
-            {lista.map((m) => (
-              <tr key={m.id}>
-                <td><Patente chica>{m.patente}</Patente></td>
-                <td>{m.descripcion}<div className="muted small">{m.tipo}</div></td>
-                <td>{m.estado === 'realizado' ? fechaCorta(m.fecha_realizada) : m.fecha_programada ? fechaCorta(m.fecha_programada) : m.km_programado ? `${m.km_programado} km` : '-'}</td>
-                <td><span className={`badge ${m.estado === 'realizado' ? 'ok' : 'warn'}`}>{m.estado === 'realizado' ? 'Realizado' : 'Programado'}</span></td>
-                <td className="der num">{m.costo != null ? money(m.costo) : ''}</td>
-                <td className="der">{m.estado === 'programado' && <button className="btn btn-ghost sm" onClick={() => setHecho(m.id)}>Marcar realizado</button>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+
+        <div style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+          <h4 style={{ margin: '0 0 15px 0', color: '#064e3b', fontSize: '16px' }}>🚛 Registrar Vehículo / Autoelevador</h4>
+          <form onSubmit={agregarVehiculo}>
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Patente / Dominio / ID:</label>
+              <input type="text" placeholder="Ej: NEB732" value={nuevoDominioVehiculo} onChange={(e) => setNuevoDominioVehiculo(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', textTransform: 'uppercase' }} required />
+            </div>
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Modelo:</label>
+              <input type="text" placeholder="Ej: IVECO Daily" value={nuevoModeloVehiculo} onChange={(e) => setNuevoModeloVehiculo(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} required />
+            </div>
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Medición de Uso / Mantenimiento:</label>
+              <select value={tipoMedicionVehiculo} onChange={(e) => setTipoMedicionVehiculo(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#fff' }}>
+                <option value="Kilómetros">Kilómetros (Camiones / Furgones)</option>
+                <option value="Horas">Horas de Trabajo - Horómetro (Autoelevadores)</option>
+              </select>
+            </div>
+            {tipoMedicionVehiculo === 'Kilómetros' ? (
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Kilometraje Actual:</label>
+                <input type="number" placeholder="124500" value={nuevoKmVehiculo} onChange={(e) => setNuevoKmVehiculo(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+              </div>
+            ) : (
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#b45309' }}>⚙️ Horas de Trabajo Actuales (Horómetro):</label>
+                <input type="number" placeholder="Ej: 1250" value={nuevasHorasVehiculo} onChange={(e) => setNuevasHorasVehiculo(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #f59e0b', backgroundColor: '#fffbeb' }} required />
+              </div>
+            )}
+            <button type="submit" style={{ width: '100%', padding: '10px', backgroundColor: '#0284c7', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Guardar Vehículo / Unidad</button>
+          </form>
+        </div>
       </div>
-      {hecho && (
-        <div className="card alerta">
-          <h3>Datos del mantenimiento realizado</h3>
-          <FormSimple
-            boton="Confirmar"
-            campos={[
-              { k: 'costo', label: 'Costo', type: 'number', req: true },
-              { k: 'km_realizado', label: 'Km al realizarlo', type: 'number' },
-              { k: 'taller', label: 'Taller' },
-            ]}
-            onSubmit={async (v) => { await api('/api/logistica/mantenimientos', { method: 'PATCH', body: { ...v, id: hecho } }); setHecho(null); await cargar(); }}
-          />
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+        <div>
+          <h4 style={{ margin: '0 0 10px 0', color: '#1e293b' }}>👥 Plantel Registrado</h4>
+          <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
+                  <th style={{ padding: '8px' }}>Nombre</th>
+                  <th style={{ padding: '8px' }}>Rol</th>
+                  <th style={{ padding: '8px' }}>Contacto</th>
+                  <th style={{ padding: '8px', textAlign: 'center' }}>Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                {personalEmpresa.map((p, idx) => (
+                  <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '8px', fontWeight: 'bold' }}>{p.nombre}</td>
+                    <td style={{ padding: '8px' }}><span style={{ padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', backgroundColor: p.rol === 'Chofer' ? '#dcfce7' : '#e0f2fe', color: p.rol === 'Chofer' ? '#166534' : '#0369a1' }}>{p.rol}</span></td>
+                    <td style={{ padding: '8px', color: '#64748b' }}>{p.telefono}</td>
+                    <td style={{ padding: '8px', textAlign: 'center' }}><button onClick={() => eliminarPersonal(p.id)} style={{ backgroundColor: '#fee2e2', color: '#b91c1c', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>🗑️</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      )}
+
+        <div>
+          <h4 style={{ margin: '0 0 10px 0', color: '#1e293b' }}>🚛 Vehículos y Autoelevadores Activos</h4>
+          <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
+                  <th style={{ padding: '8px' }}>Patente/ID</th>
+                  <th style={{ padding: '8px' }}>Modelo</th>
+                  <th style={{ padding: '8px' }}>Uso Actual</th>
+                  <th style={{ padding: '8px', textAlign: 'center' }}>Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                {flotaVehiculos.map((v, idx) => (
+                  <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '8px', fontWeight: 'bold', fontFamily: 'monospace' }}>{v.dominio}</td>
+                    <td style={{ padding: '8px' }}>{v.modelo}</td>
+                    <td style={{ padding: '8px', color: v.tipoMedicion === 'Horas' ? '#b45309' : '#0284c7', fontWeight: 'bold' }}>{v.tipoMedicion === 'Horas' ? `⚙️ ${v.horas} Horas` : `🛣️ ${v.km} km`}</td>
+                    <td style={{ padding: '8px', textAlign: 'center' }}><button onClick={() => eliminarVehiculo(v.dominio)} style={{ backgroundColor: '#fee2e2', color: '#b91c1c', border: 'none', borderRadius: '4px', padding: '4px 6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>🗑️</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
-  );
-}
-
-export default function TabFlota({ maestros, recargar }) {
-  const guardar = (tipo) => async (datos) => { await api('/api/logistica/maestros', { method: 'POST', body: { tipo, datos } }); await recargar(); };
-
-  return (
-    <>
-      <Mantenimientos maestros={maestros} />
-
-      <div className="grilla2">
-        <div className="card stack">
-          <h3>Flota ({maestros.vehiculos.length})</h3>
-          <div className="small muted">{maestros.vehiculos.map((v) => `${v.patente} (${v.km_actual} km)`).join(', ') || 'Sin vehículos'}</div>
-          <FormSimple boton="Agregar vehículo" onSubmit={guardar('vehiculo')} campos={[
-            { k: 'patente', label: 'Patente', req: true },
-            { k: 'marca', label: 'Marca' }, { k: 'modelo', label: 'Modelo' },
-            { k: 'anio', label: 'Año', type: 'number' }, { k: 'tipo', label: 'Tipo (camión, utilitario…)' },
-            { k: 'capacidad_kg', label: 'Capacidad (kg)', type: 'number' }, { k: 'km_actual', label: 'Km actual', type: 'number' },
-          ]} />
-        </div>
-
-        <div className="card stack">
-          <h3>Choferes ({maestros.choferes.length})</h3>
-          <div className="small muted">{maestros.choferes.map((c) => c.nombre).join(', ') || 'Sin choferes'}</div>
-          <FormSimple boton="Agregar chofer" onSubmit={guardar('chofer')} campos={[
-            { k: 'nombre', label: 'Nombre', req: true }, { k: 'apellido', label: 'Apellido', req: true },
-            { k: 'dni', label: 'DNI' }, { k: 'telefono_wsp', label: 'WhatsApp (con código de país, ej. 5491155551234)', req: true },
-            { k: 'email', label: 'Email de acceso', type: 'email', req: true },
-            { k: 'password', label: 'Contraseña inicial (mín. 8)', type: 'password', req: true },
-          ]} />
-        </div>
-
-        <div className="card stack">
-          <h3>Clientes ({maestros.clientes.length})</h3>
-          <FormSimple boton="Agregar cliente" onSubmit={guardar('cliente')} campos={[
-            { k: 'razon_social', label: 'Razón social', req: true }, { k: 'cuit', label: 'CUIT' },
-            { k: 'telefono', label: 'Teléfono' }, { k: 'contacto', label: 'Contacto en destino' },
-            { k: 'direccion', label: 'Dirección', req: true }, { k: 'localidad', label: 'Localidad' }, { k: 'provincia', label: 'Provincia' },
-          ]} />
-        </div>
-
-        <div className="card stack">
-          <h3>Otra dirección para un cliente</h3>
-          <FormSimple boton="Agregar dirección" onSubmit={guardar('direccion')} campos={[
-            { k: 'cliente_id', label: 'Cliente', req: true, options: maestros.clientes.map((c) => [c.id, c.razon_social]) },
-            { k: 'alias', label: 'Nombre (ej. Sucursal Norte)' }, { k: 'direccion', label: 'Dirección', req: true },
-            { k: 'localidad', label: 'Localidad' }, { k: 'provincia', label: 'Provincia' }, { k: 'contacto', label: 'Contacto' },
-          ]} />
-        </div>
-      </div>
-    </>
   );
 }
