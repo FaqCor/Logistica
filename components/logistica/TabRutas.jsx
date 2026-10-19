@@ -111,92 +111,15 @@ export default function TabRutas({
         </div>
       )}
 
-      {/* VISTA ACTIVA DE RUTA */}
-      <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
-          <div>
-            <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, color: '#1e293b' }}>
-              {esChofer ? '🛣️ Mi Hoja de Ruta Asignada' : `Ruta Activa: ${choferSeleccionado}`}
-            </h2>
-            <span style={{ fontSize: '12px', color: '#64748b' }}>Hub de Salida: Maestro Pedernera 1217</span>
-          </div>
-
-          {esChofer && (
-            <button onClick={() => setModalCierreFinalViaje(true)} style={{ padding: '10px 16px', backgroundColor: '#064e3b', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}>
-              🏁 Finalizar Viaje (Cierre Hub)
-            </button>
-          )}
-        </div>
-
-        {listaMostrada.length === 0 ? (
-          <div style={{ padding: '30px', textAlign: 'center', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
-            <p style={{ margin: 0, fontSize: '14px', color: '#64748b' }}>
-              {esChofer ? 'No tienes pedidos asignados en este momento.' : `No hay paradas asignadas todavía para ${choferSeleccionado}.`}
-            </p>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {listaMostrada.map((p, idx) => {
-              const telefonoCliente = p.telefono || p.celular || '3874556677';
-              return (
-                <div key={idx} style={{ padding: '16px', backgroundColor: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '10px', borderLeft: '6px solid #0284c7', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                  <div style={{ flex: '1 1 300px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
-                      <span style={{ backgroundColor: '#0284c7', color: '#fff', fontWeight: 'bold', padding: '3px 8px', borderRadius: '4px', fontSize: '11px' }}>
-                        PARADA #{idx + 1}
-                      </span>
-                      <strong style={{ fontSize: '16px', color: '#0f172a' }}>#{p.id} - {p.cliente || p.Cliente || 'Cliente'}</strong> ({p.provincia || 'Salta'})
-                    </div>
-
-                    <p style={{ margin: '4px 0', fontSize: '13px', color: '#334155' }}>📍 <strong>Dirección:</strong> {p.direccion || p.Direccion} ({p.localidad || 'Salta'})</p>
-                    <p style={{ margin: '4px 0 12px 0', fontSize: '13px', color: '#334155' }}>📦 <strong>Bultos:</strong> {p.bultos || 1}</p>
-
-                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                      <button 
-                        onClick={() => abrirGoogleMaps(p.direccion || p.Direccion, p.localidad, p.provincia)}
-                        style={{ padding: '8px 12px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
-                      >
-                        🗺️ Google Maps
-                      </button>
-
-                      <a href={`tel:${telefonoCliente}`} style={{ padding: '8px 12px', backgroundColor: '#16a34a', color: '#fff', borderRadius: '6px', textDecoration: 'none', fontSize: '12px', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center' }}>
-                        📞 Llamar
-                      </a>
-
-                      {esChofer && (
-                        <button onClick={() => { setPedidoACerrar(p); setModalCierreAbierto(true); }} style={{ padding: '8px 12px', backgroundColor: '#064e3b', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
-                          📝 Rendir Entrega
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* BOTÓN QUITAR DE ESTA RUTA (SE MUESTRA AL EXTREMO DERECHO) */}
-                  {!esChofer && (
-                    <button 
-                      onClick={() => quitarPedidoDeChofer(choferSeleccionado, p.id)}
-                      title="Quitar pedido para volver a dejarlo disponible"
-                      style={{ padding: '8px 14px', backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
-                    >
-                      ❌ Quitar
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
       {/* REPORTE CONSOLIDADO CON BOTÓN QUITAR EN CADA FILA */}
       {!esChofer && (
         <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
           <h3 style={{ margin: '0 0 6px 0', fontSize: '18px', fontWeight: 'bold', color: '#0f172a' }}>📋 Reporte de Viajes Asignados y Organizados para Hoy</h3>
-          <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: '#64748b' }}>Visualiza todas las hojas de ruta listas por chofer.</p>
+          <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: '#64748b' }}>Visualiza todas las hojas de ruta listas por chofer, optimiza su itinerario y envíales sus entregas en orden.</p>
 
           {nombresChoferesConRuta.length === 0 ? (
             <div style={{ padding: '20px', textAlign: 'center', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
-              <p style={{ margin: 0, fontSize: '14px', color: '#64748b' }}>Aún no has preparado viajes para ningún chofer hoy.</p>
+              <p style={{ margin: 0, fontSize: '14px', color: '#64748b' }}>Aún no has preparado viajes para ningún chofer hoy. Selecciona pedidos arriba y haz clic en "Añadir Ruta".</p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
