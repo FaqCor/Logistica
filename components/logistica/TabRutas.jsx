@@ -8,10 +8,10 @@ export default function TabRutas({
   vehiculoSeleccionado,
   setVehiculoSeleccionado,
   vehiculoPorChofer = {},
-  listaChoferes,
-  flotaVehiculos,
-  pedidosPorChofer,
-  pedidosSeleccionadosCheckbox,
+  listaChoferes = [],
+  flotaVehiculos = [],
+  pedidosPorChofer = {},
+  pedidosSeleccionadosCheckbox = [],
   toggleSeleccionPedidoCheckbox,
   agregarPedidosSeleccionadosARuta,
   quitarPedidoDeChofer,
@@ -20,10 +20,10 @@ export default function TabRutas({
   enviarRutaWhatsApp,
   enviarRutaWhatsAppEspecifico,
   kmTotalRuta,
-  pedidosArchivadosRuta,
+  pedidosArchivadosRuta = [],
   setPedidosArchivadosRuta,
-  listaPedidosDisponibles,
-  nombresChoferesConRuta,
+  listaPedidosDisponibles = [],
+  nombresChoferesConRuta = [],
   setModalCierreAbierto,
   setPedidoACerrar,
   setModalCierreFinalViaje,
@@ -33,21 +33,15 @@ export default function TabRutas({
   const pedidosChoferActual = pedidosPorChofer[nombreChoferActivo] || [];
   const listaMostrada = pedidosChoferActual.filter(p => !pedidosArchivadosRuta.includes(p.id));
 
-  const abrirGoogleMaps = (direccion, localidad, provincia) => {
-    const destinoFormatted = `${direccion}, ${localidad || 'Salta'}, ${provincia || 'Salta'}, Argentina`;
-    const urlMaps = `https://www.google.com/maps/dir/?api=1&origin=Maestro+Pedernera+1217,+Salta&destination=${encodeURIComponent(destinoFormatted)}&travelmode=driving`;
-    window.open(urlMaps, '_blank');
-  };
-
   const vehiculosEnUsoPorOtros = Object.entries(vehiculoPorChofer)
     .filter(([nombreCh, patente]) => nombreCh !== choferSeleccionado && (pedidosPorChofer[nombreCh] || []).length > 0)
     .map(([_, patente]) => patente);
 
   return (
-    <div>
+    <div style={{ fontFamily: 'sans-serif' }}>
       {/* PANEL DE SELECCIÓN Y ASIGNACIÓN (SOLO LOGÍSTICA) */}
       {!esChofer && (
-        <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '24px' }}>
+        <div style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '24px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '15px', marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid #e2e8f0' }}>
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px', color: '#334155' }}>Seleccionar Chofer:</label>
@@ -113,7 +107,7 @@ export default function TabRutas({
 
       {/* REPORTE CONSOLIDADO CON BOTÓN QUITAR EN CADA FILA */}
       {!esChofer && (
-        <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+        <div style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
           <h3 style={{ margin: '0 0 6px 0', fontSize: '18px', fontWeight: 'bold', color: '#0f172a' }}>📋 Reporte de Viajes Asignados y Organizados para Hoy</h3>
           <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: '#64748b' }}>Visualiza todas las hojas de ruta listas por chofer, optimiza su itinerario y envíales sus entregas en orden.</p>
 
@@ -149,17 +143,19 @@ export default function TabRutas({
                             <strong>#{p.id} - ({p.provincia || 'Salta'})</strong> | 📍 {p.direccion || p.Direccion}
                           </div>
 
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                             <span style={{ fontSize: '12px', color: '#64748b' }}>📦 Bultos: {p.bultos || 1}</span>
                             
-                            {/* BOTÓN QUITAR EN EL EXTREMO DERECHO */}
-                            <button 
-                              onClick={() => quitarPedidoDeChofer(nombreChofer, p.id)}
-                              title="Quitar pedido"
-                              style={{ padding: '4px 10px', backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
-                            >
-                              ❌ Quitar
-                            </button>
+                            {/* BOTÓN QUITAR DIRECTO */}
+                            {quitarPedidoDeChofer && (
+                              <button 
+                                onClick={() => quitarPedidoDeChofer(nombreChofer, p.id)}
+                                title="Quitar pedido"
+                                style={{ padding: '6px 14px', backgroundColor: '#dc2626', color: '#ffffff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+                              >
+                                ❌ Quitar
+                              </button>
+                            )}
                           </div>
                         </div>
                       ))}

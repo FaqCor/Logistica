@@ -10,14 +10,12 @@ export default function Panel({ email }) {
   const esChofer = email && (email.toLowerCase().includes('chofer') || email.toLowerCase().includes('driver')); 
   const [pestanaActiva, setPestanaActiva] = useState('gestion');
 
-  // Estados de control y fecha
   const [checklistEnviado, setChecklistEnviado] = useState(false);
   const [kmChecklist, setKmChecklist] = useState('54000');
   const [enviandoChecklist, setEnviandoChecklist] = useState(false);
   const hoy = new Date();
   const fechaFormateada = `${hoy.getDate().toString().padStart(2, '0')}/${(hoy.getMonth() + 1).toString().padStart(2, '0')}/${hoy.getFullYear()}`;
 
-  // Estados de datos
   const [modalAbierto, setModalAbierto] = useState(false);
   const [datosExcel, setDatosExcel] = useState([]);
   const [importando, setImportando] = useState(false);
@@ -27,7 +25,6 @@ export default function Panel({ email }) {
   const [pedidosPorChofer, setPedidosPorChofer] = useState({});
   const [vehiculoPorChofer, setVehiculoPorChofer] = useState({});
 
-  // Carga inicial desde localStorage al montar el componente (evita pérdida al refrescar)
   useEffect(() => {
     const pedidosGuardados = localStorage.getItem('pedidosPorChofer');
     if (pedidosGuardados) {
@@ -40,7 +37,6 @@ export default function Panel({ email }) {
     }
   }, []);
 
-  // Guardar en localStorage cada vez que hay cambios
   useEffect(() => {
     if (Object.keys(pedidosPorChofer).length > 0) {
       localStorage.setItem('pedidosPorChofer', JSON.stringify(pedidosPorChofer));
@@ -53,7 +49,6 @@ export default function Panel({ email }) {
     }
   }, [vehiculoPorChofer]);
 
-  // Borrado manual de historial
   const limpiarHistorialRutas = () => {
     if (confirm('¿Estás seguro de que deseas borrar todo el historial de rutas asignadas?')) {
       setPedidosPorChofer({});
@@ -67,7 +62,6 @@ export default function Panel({ email }) {
   const [pedidosSeleccionadosCheckbox, setPedidosSeleccionadosCheckbox] = useState([]);
   const [pedidosArchivadosRuta, setPedidosArchivadosRuta] = useState([]);
 
-  // Estados de Flota y Mantenimiento
   const [flotaMantenimientoBD, setFlotaMantenimientoBD] = useState([]);
   const [nuevaPatenteMto, setNuevaPatenteMto] = useState('');
   const [nuevoModeloMto, setNuevoModeloMto] = useState('');
@@ -110,7 +104,6 @@ export default function Panel({ email }) {
   
   const [kmTotalRuta, setKmTotalRuta] = useState(0);
 
-  // Modales
   const [modalCierreAbierto, setModalCierreAbierto] = useState(false);
   const [pedidoACerrar, setPedidoACerrar] = useState(null);
   const [estadoEntrega, setEstadoEntrega] = useState('Entregado');
@@ -154,7 +147,6 @@ export default function Panel({ email }) {
     setPedidosPorChofer(nuevosPedidosPorChofer);
     setVehiculoPorChofer(nuevosVehiculosPorChofer);
 
-    // Guardar explícitamente en localStorage
     localStorage.setItem('pedidosPorChofer', JSON.stringify(nuevosPedidosPorChofer));
     localStorage.setItem('vehiculoPorChofer', JSON.stringify(nuevosVehiculosPorChofer));
 
@@ -234,7 +226,6 @@ export default function Panel({ email }) {
 
   return (
     <div style={{ backgroundColor: '#f1f5f9', minHeight: '100vh', fontFamily: 'sans-serif' }}>
-      {/* HEADER SUPERIOR */}
       <div style={{ backgroundColor: '#064e3b', color: '#fff', padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>{fechaFormateada}</span>
         <h1 style={{ fontSize: '20px', margin: 0, fontWeight: 'bold' }}>Área Logística</h1>
@@ -252,7 +243,6 @@ export default function Panel({ email }) {
       </div>
 
       <div style={{ padding: '24px', maxWidth: '1100px', margin: '0 auto' }}>
-        {/* NAVEGACIÓN PESTAÑAS */}
         {!esChofer && (
           <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
             <button onClick={() => setPestanaActiva('gestion')} style={{ backgroundColor: pestanaActiva === 'gestion' ? '#1e293b' : '#64748b', color: '#fff', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>🗺️ Rutas</button>
@@ -262,7 +252,6 @@ export default function Panel({ email }) {
           </div>
         )}
 
-        {/* PESTAÑA RUTAS */}
         {pestanaActiva === 'gestion' && (
           <TabRutas 
             esChofer={esChofer}
@@ -294,12 +283,10 @@ export default function Panel({ email }) {
           />
         )}
 
-        {/* PESTAÑA REPORTES */}
         {pestanaActiva === 'reportes' && !esChofer && (
           <TabPedidos listaReportes={listaReportes} exportarReporteExcel={exportarReporteExcel} />
         )}
 
-        {/* PESTAÑA FLOTA Y PERSONAL */}
         {pestanaActiva === 'flotaPersonal' && !esChofer && (
           <TabFlota 
             personalEmpresa={personalEmpresa}
@@ -329,7 +316,6 @@ export default function Panel({ email }) {
           />
         )}
 
-        {/* PESTAÑA MANTENIMIENTO */}
         {pestanaActiva === 'mantenimientoFlota' && !esChofer && (
           <TabCostos 
             listaTodasPatentes={listaTodasPatentes}
