@@ -631,7 +631,7 @@ export default function Panel({ email }) {
     alert(`¡Se asignaron ${pedidosAgn.length} pedidos al chofer ${choferSeleccionado} con éxito!`);
   };
 
-  // --- OPTIMIZACIÓN DE RUTA DE CUALQUIER CHOFER (USADO EN PANEL O EN REPORTE GENERAL) ---
+  // --- OPTIMIZACIÓN DE RUTA DE CUALQUIER CHOFER ---
   const optimizarRutaEspecificaChofer = (nombreChofer) => {
     const pedidosChoferTarget = pedidosPorChofer[nombreChofer] || [];
     if (pedidosChoferTarget.length === 0) {
@@ -639,9 +639,14 @@ export default function Panel({ email }) {
       return;
     }
 
-    const rutaOrdenada = [...pedidosChoferTarget].sort((a, b) => (a.kmDesdeCD || 100) - (b.kmDesdeCD || 100));
-    const kmMaximo = Math.max(...rutaOrdenada.map(p => p.kmDesdeCD || 150));
-    const kmTotalCalculado = Math.round(kmMaximo * 2.15);
+    const rutaOrdenada = [...pedidosChoferTarget].sort((a, b) => {
+      const distA = Number(a.kmDesdeCD || a.km_desde_cd || 50);
+      const distB = Number(b.kmDesdeCD || b.km_desde_cd || 50);
+      return distA - distB;
+    });
+
+    const maxDist = Math.max(...rutaOrdenada.map(p => Number(p.kmDesdeCD || p.km_desde_cd || 50)));
+    const kmTotalCalculado = Math.round(maxDist * 2.15);
     
     setPedidosPorChofer({
       ...pedidosPorChofer,
@@ -659,7 +664,7 @@ export default function Panel({ email }) {
     optimizarRutaEspecificaChofer(choferSeleccionado);
   };
 
-  // --- ENVIAR WHATSAPP A UN CHOFER ESPECÍFICO DESDE EL REPORTE ---
+  // --- ENVIAR WHATSAPP A UN CHOFER ESPECÍFICO ---
   const enviarRutaWhatsAppEspecifico = (nombreChofer) => {
     const listaAEnviar = pedidosPorChofer[nombreChofer] || [];
     if (listaAEnviar.length === 0) {
@@ -667,8 +672,8 @@ export default function Panel({ email }) {
       return;
     }
 
-    const kmMax = Math.max(...listaAEnviar.map(p => p.kmDesdeCD || 150));
-    const kmCalc = Math.round(kmMax * 2.15);
+    const maxDist = Math.max(...listaAEnviar.map(p => Number(p.kmDesdeCD || p.km_desde_cd || 50)));
+    const kmCalc = Math.round(maxDist * 2.15);
 
     let mensaje = `🚛 *HOJA DE RUTA OPTIMIZADA*\n`;
     mensaje += `*Chofer:* ${nombreChofer}\n`;
@@ -697,7 +702,7 @@ export default function Panel({ email }) {
     if (!pedidoACerrar) return;
 
     const esOtraProvincia = (pedidoACerrar.provincia || 'Salta').toLowerCase() !== 'salta';
-    const kmPedido = esOtraProvincia ? (parseFloat(kmEntregaInterurbana) || pedidoACerrar.kmDesdeCD || 0) : (pedidoACerrar.kmDesdeCD || 0);
+    const kmPedido = esOtraProvincia ? (parseFloat(kmEntregaInterurbana) || Number(pedidoACerrar.kmDesdeCD || pedidoACerrar.km_desde_cd || 0)) : Number(pedidoACerrar.kmDesdeCD || pedidoACerrar.km_desde_cd || 0);
     
     const ef = parseFloat(montoEfectivo) || 0;
     const tr = parseFloat(montoTransferencia) || 0;
@@ -827,7 +832,7 @@ export default function Panel({ email }) {
       'Estado Entrega': p.estado_entrega || 'Pendiente',
       'Total Cobrado ($)': p.monto_total_cobrado || 0,
       'Total Viáticos ($)': p.gasto_total || 0,
-      'KM Recorridos': p.km_recorridos_pedido || p.kmDesdeCD || 0
+      'KM Recorridos': Number(p.km_recorridos_pedido || p.kmDesdeCD || p.km_desde_cd || 0)
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(datosExportar);
@@ -1301,7 +1306,7 @@ export default function Panel({ email }) {
 
               </div>
 
-              {/* NUEVO REPORTE CONSOLIDADO DE VIAJES PREPARADOS PARA EL DÍA */}
+              {/* REPORTE CONSOLIDADO DE VIAJES PREPARADOS PARA EL DÍA CON DISTANCIAS REALES */}
               {!esChofer && (
                 <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
@@ -1325,8 +1330,8 @@ export default function Panel({ email }) {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                       {nombresChoferesConRuta.map((nombreChofer, idx) => {
                         const listaPedidosChofer = pedidosPorChofer[nombreChofer] || [];
-                        const kmMax = Math.max(...listaPedidosChofer.map(p => p.kmDesdeCD || 150));
-                        const kmEstimado = Math.round(kmMax * 2.15);
+                        const maxDist = Math.max(...listaPedidosChofer.map(p => Number(p.kmDesdeCD || p.km_desde_cd || 50)));
+                        const kmEstimado = Math.round(maxDist * 2.15);
 
                         return (
                           <div key={idx} style={{ border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px', backgroundColor: '#f8fafc' }}>
@@ -1432,7 +1437,7 @@ export default function Panel({ email }) {
                       </td>
                       <td style={{ padding: '10px', fontWeight: 'bold', color: '#15803d' }}>${p.monto_total_cobrado || 0}</td>
                       <td style={{ padding: '10px', fontWeight: 'bold', backgroundColor: '#fff5f5', color: '#b91c1c' }}>${p.gasto_total || 0}</td>
-                      <td style={{ padding: '10px', fontWeight: 'bold', backgroundColor: '#f0f9ff', color: '#0369a1' }}>{p.km_recorridos_pedido || p.kmDesdeCD || 0} KM</td>
+                      <td style={{ padding: '10px', fontWeight: 'bold', backgroundColor: '#f0f9ff', color: '#0369a1' }}>{Number(p.km_recorridos_pedido || p.kmDesdeCD || p.km_desde_cd || 0)} KM</td>
                     </tr>
                   ))}
                 </tbody>
