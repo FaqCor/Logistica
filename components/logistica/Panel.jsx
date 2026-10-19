@@ -1,7 +1,8 @@
 'use client';
 import React, { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 
-// IMPORTACIONES CORRECTAS (Panel.jsx está dentro de components/logistica/)
+// Modulos separados (ubicados en la misma carpeta components/logistica/)
 import TabRutas from './TabRutas';
 import TabFlota from './TabFlota';
 import TabCostos from './TabCostos';
@@ -11,24 +12,23 @@ export default function Panel({ email }) {
   const esChofer = Boolean(email && (email.toLowerCase().includes('chofer') || email.toLowerCase().includes('driver'))); 
   const [pestanaActiva, setPestanaActiva] = useState('gestion');
 
-  // Estados de control y fecha
+  // --- ESTADOS DE CONTROL, CHECKLIST Y FECHA ---
   const [checklistEnviado, setChecklistEnviado] = useState(false);
   const [kmChecklist, setKmChecklist] = useState('54000');
   const [enviandoChecklist, setEnviandoChecklist] = useState(false);
   const hoy = new Date();
   const fechaFormateada = `${hoy.getDate().toString().padStart(2, '0')}/${(hoy.getMonth() + 1).toString().padStart(2, '0')}/${hoy.getFullYear()}`;
 
-  // Estados de datos
+  // --- ESTADOS DE DATOS E IMPORTACIÓN EXCEL ---
   const [modalAbierto, setModalAbierto] = useState(false);
   const [datosExcel, setDatosExcel] = useState([]);
   const [importando, setImportando] = useState(false);
   const [pedidosBD, setPedidosBD] = useState([]);
 
-  // --- PERSISTENCIA CON LOCALSTORAGE ---
+  // --- PERSISTENCIA SEGURO CON LOCALSTORAGE ---
   const [pedidosPorChofer, setPedidosPorChofer] = useState({});
   const [vehiculoPorChofer, setVehiculoPorChofer] = useState({});
 
-  // Carga inicial desde localStorage al montar en el cliente
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -38,12 +38,11 @@ export default function Panel({ email }) {
         const vehiculosGuardados = localStorage.getItem('vehiculoPorChofer');
         if (vehiculosGuardados) setVehiculoPorChofer(JSON.parse(vehiculosGuardados));
       } catch (e) {
-        console.error('Error al leer localStorage:', e);
+        console.error('Error al cargar datos guardados:', e);
       }
     }
   }, []);
 
-  // Guardar en localStorage ante cambios
   useEffect(() => {
     if (typeof window !== 'undefined' && Object.keys(pedidosPorChofer).length > 0) {
       localStorage.setItem('pedidosPorChofer', JSON.stringify(pedidosPorChofer));
@@ -68,10 +67,11 @@ export default function Panel({ email }) {
     }
   };
 
+  // --- ESTADOS DE SELECCIÓN Y ARCHIVO ---
   const [pedidosSeleccionadosCheckbox, setPedidosSeleccionadosCheckbox] = useState([]);
   const [pedidosArchivadosRuta, setPedidosArchivadosRuta] = useState([]);
 
-  // Estados de Flota y Mantenimiento
+  // --- ESTADOS DE FLOTA Y MANTENIMIENTO ---
   const [flotaMantenimientoBD, setFlotaMantenimientoBD] = useState([]);
   const [nuevaPatenteMto, setNuevaPatenteMto] = useState('');
   const [nuevoModeloMto, setNuevoModeloMto] = useState('');
@@ -82,6 +82,7 @@ export default function Panel({ email }) {
   const [nuevoCostoMto, setNuevoCostoMto] = useState('');
   const [filtroPatenteMto, setFiltroPatenteMto] = useState('');
 
+  // --- PERSONAL Y VEHÍCULOS ---
   const [personalEmpresa, setPersonalEmpresa] = useState([
     { id: 1, nombre: 'Juan Pérez', rol: 'Chofer', email: 'chofer@demo.com', telefono: '3874556677' },
     { id: 2, nombre: 'Carlos Gómez', rol: 'Chofer', email: 'carlos@dmmaestro.com', telefono: '3875112233' }
@@ -103,20 +104,22 @@ export default function Panel({ email }) {
     { dominio: 'AF997GV', modelo: 'Mercedes Benz Sprinter', km: 98200, horas: 0, tipoMedicion: 'Kilómetros', estado: 'Disponible', enMantenimiento: false }
   ]);
 
-  const [choferSeleccionado, setChoferSeleccionado] = useState('Juan Pérez');
-  const [vehiculoSeleccionado, setVehiculoSeleccionado] = useState('NEB732');
-  
+  const [choferSeleccionado, setChoferSeleccionado] = useState(listaChoferes[0]?.nombre || 'Juan Pérez');
+  const [vehiculoSeleccionado, setVehiculoSeleccionado] = useState(flotaVehiculos[0]?.dominio || 'NEB732');
+
   const pedidosEjemplo = [
     { id: 101, cliente: 'Ferretería El Norte', provincia: 'Salta', localidad: 'General Güemes', direccion: 'Av. San Martín 450', bultos: 12, kmDesdeCD: 50, estado_entrega: 'Pendiente' },
     { id: 102, cliente: 'Corralón San Miguel', provincia: 'Tucumán', localidad: 'San Miguel de Tucumán', direccion: 'Av. Kirchner 1200', bultos: 45, kmDesdeCD: 310, estado_entrega: 'Pendiente' },
     { id: 103, cliente: 'Distribuidora del Centro', provincia: 'Santiago del Estero', localidad: 'Santiago Capital', direccion: 'Belgrano Sur 890', bultos: 30, kmDesdeCD: 470, estado_entrega: 'Pendiente' }
   ];
-  
+
   const [kmTotalRuta, setKmTotalRuta] = useState(0);
 
+  // --- MODALES DE CIERRE Y ENTREGAS ---
   const [modalCierreAbierto, setModalCierreAbierto] = useState(false);
   const [pedidoACerrar, setPedidoACerrar] = useState(null);
   const [estadoEntrega, setEstadoEntrega] = useState('Entregado');
+  const [observacionEntrega, setObservacionEntrega] = useState('');
   const [modalCierreFinalViaje, setModalCierreFinalViaje] = useState(false);
 
   const listaTodasPatentes = Array.from(new Set([...flotaVehiculos.map(v => v.dominio), ...flotaMantenimientoBD.map(v => v.patente)])).filter(Boolean);
@@ -135,6 +138,7 @@ export default function Panel({ email }) {
 
   useEffect(() => { cargarDatosBD(); }, []);
 
+  // --- FUNCIONES DE ASIGNACIÓN Y NAVEGACIÓN ---
   const toggleSeleccionPedidoCheckbox = (idPedido) => {
     if (pedidosSeleccionadosCheckbox.includes(idPedido)) {
       setPedidosSeleccionadosCheckbox(pedidosSeleccionadosCheckbox.filter(id => id !== idPedido));
@@ -168,6 +172,7 @@ export default function Panel({ email }) {
     setPedidosSeleccionadosCheckbox([]);
   };
 
+  // FUNCION INDIVIDUAL PARA DESASIGNAR PEDIDO
   const quitarPedidoDeChofer = (nombreChofer, idPedido) => {
     const listaActual = pedidosPorChofer[nombreChofer] || [];
     const listaNueva = listaActual.filter(p => p.id !== idPedido);
@@ -212,11 +217,77 @@ export default function Panel({ email }) {
 
   const enviarRutaWhatsApp = () => enviarRutaWhatsAppEspecifico(choferSeleccionado);
 
+  // --- IMPORTACIÓN Y PROCESAMIENTO EXCEL ---
+  const manejarArchivoExcel = (e) => {
+    const archivo = e.target.files[0];
+    if (!archivo) return;
+    setImportando(true);
+    const lector = new FileReader();
+    lector.onload = (evt) => {
+      try {
+        const bstr = evt.target.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws);
+        setDatosExcel(data);
+        setModalAbierto(true);
+      } catch (err) {
+        alert('Error al leer el archivo Excel.');
+      } finally {
+        setImportando(false);
+      }
+    };
+    lector.readAsBinaryString(archivo);
+  };
+
+  const confirmarImportacionExcel = () => {
+    if (datosExcel.length > 0) {
+      const nuevosNuevos = datosExcel.map((row, idx) => ({
+        id: row.id || row.ID || Date.now() + idx,
+        cliente: row.cliente || row.Cliente || 'Cliente N/A',
+        provincia: row.provincia || row.Provincia || 'Salta',
+        localidad: row.localidad || row.Localidad || 'Salta',
+        direccion: row.direccion || row.Direccion || 'Sin Dirección',
+        bultos: Number(row.bultos || row.Bultos) || 1,
+        kmDesdeCD: Number(row.kmDesdeCD || row.Km) || 50,
+        estado_entrega: 'Pendiente'
+      }));
+      setPedidosBD([...pedidosBD, ...nuevosNuevos]);
+      setModalAbierto(false);
+      setDatosExcel([]);
+      alert(`Se importaron ${nuevosNuevos.length} pedidos correctamente.`);
+    }
+  };
+
+  // --- PROCESOS DE CIERRE Y ENTREGAS ---
+  const confirmarCierrePedido = () => {
+    if (!pedidoACerrar) return;
+    setPedidosArchivadosRuta([...pedidosArchivadosRuta, pedidoACerrar.id]);
+    setModalCierreAbierto(false);
+    setPedidoACerrar(null);
+    setObservacionEntrega('');
+    alert('Pedido registrado con éxito.');
+  };
+
+  const finalizarJornadaViaje = () => {
+    setModalCierreFinalViaje(true);
+  };
+
+  const confirmarFinalizacionTotalViaje = () => {
+    setPedidosPorChofer({ ...pedidosPorChofer, [choferSeleccionado]: [] });
+    setModalCierreFinalViaje(false);
+    alert('Hoja de viaje finalizada. El vehículo vuelve a estar Disponible.');
+  };
+
+  // --- GESTIÓN DE PERSONAL Y FLOTA ---
   const agregarPersonal = (e) => {
     e.preventDefault();
     if (!nuevoNombrePersonal) return;
-    setPersonalEmpresa([...personalEmpresa, { id: Date.now(), nombre: nuevoNombrePersonal, rol: nuevoRolPersonal, telefono: nuevoTelPersonal || 'Sin teléfono' }]);
+    setPersonalEmpresa([...personalEmpresa, { id: Date.now(), nombre: nuevoNombrePersonal, rol: nuevoRolPersonal, email: nuevoEmailPersonal, telefono: nuevoTelPersonal || 'Sin teléfono' }]);
     setNuevoNombrePersonal('');
+    setNuevoEmailPersonal('');
+    setNuevoTelPersonal('');
     alert('Personal agregado con éxito.');
   };
 
@@ -227,6 +298,9 @@ export default function Panel({ email }) {
     if (!nuevoDominioVehiculo) return;
     setFlotaVehiculos([...flotaVehiculos, { dominio: nuevoDominioVehiculo.toUpperCase(), modelo: nuevoModeloVehiculo, km: Number(nuevoKmVehiculo) || 0, horas: Number(nuevasHorasVehiculo) || 0, tipoMedicion: tipoMedicionVehiculo, estado: 'Disponible' }]);
     setNuevoDominioVehiculo('');
+    setNuevoModeloVehiculo('');
+    setNuevoKmVehiculo('');
+    setNuevasHorasVehiculo('');
     alert('Vehículo registrado.');
   };
 
@@ -249,6 +323,12 @@ export default function Panel({ email }) {
         <span>{fechaFormateada}</span>
         <h1 style={{ fontSize: '20px', margin: 0, fontWeight: 'bold' }}>Área Logística</h1>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          {!esChofer && (
+            <label style={{ backgroundColor: '#047857', color: '#fff', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
+              📁 Importar Excel
+              <input type="file" accept=".xlsx, .xls" onChange={manejarArchivoExcel} style={{ display: 'none' }} />
+            </label>
+          )}
           <button 
             onClick={limpiarHistorialRutas} 
             style={{ backgroundColor: '#b91c1c', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
@@ -262,6 +342,7 @@ export default function Panel({ email }) {
       </div>
 
       <div style={{ padding: '24px', maxWidth: '1100px', margin: '0 auto' }}>
+        {/* NAVEGACIÓN PESTAÑAS */}
         {!esChofer && (
           <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
             <button onClick={() => setPestanaActiva('gestion')} style={{ backgroundColor: pestanaActiva === 'gestion' ? '#1e293b' : '#64748b', color: '#fff', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>🗺️ Rutas</button>
@@ -271,6 +352,7 @@ export default function Panel({ email }) {
           </div>
         )}
 
+        {/* PESTAÑA RUTAS */}
         {pestanaActiva === 'gestion' && (
           <TabRutas 
             esChofer={esChofer}
@@ -302,10 +384,12 @@ export default function Panel({ email }) {
           />
         )}
 
+        {/* PESTAÑA REPORTES */}
         {pestanaActiva === 'reportes' && !esChofer && (
           <TabPedidos listaReportes={listaReportes} exportarReporteExcel={exportarReporteExcel} />
         )}
 
+        {/* PESTAÑA FLOTA Y PERSONAL */}
         {pestanaActiva === 'flotaPersonal' && !esChofer && (
           <TabFlota 
             personalEmpresa={personalEmpresa}
@@ -335,6 +419,7 @@ export default function Panel({ email }) {
           />
         )}
 
+        {/* PESTAÑA MANTENIMIENTO */}
         {pestanaActiva === 'mantenimientoFlota' && !esChofer && (
           <TabCostos 
             listaTodasPatentes={listaTodasPatentes}
@@ -360,6 +445,63 @@ export default function Panel({ email }) {
           />
         )}
       </div>
+
+      {/* MODAL CONFIRMACIÓN IMPORTACIÓN EXCEL */}
+      {modalAbierto && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '12px', maxWidth: '500px', width: '90%' }}>
+            <h3 style={{ margin: '0 0 10px 0' }}>📄 Confirmar Importación</h3>
+            <p style={{ fontSize: '14px', color: '#64748b' }}>Se han encontrado {datosExcel.length} filas en el archivo. ¿Deseas incorporarlas a los pedidos del día?</p>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '20px' }}>
+              <button onClick={() => setModalAbierto(false)} style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={confirmarImportacionExcel} style={{ padding: '8px 16px', borderRadius: '6px', backgroundColor: '#047857', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>Confirmar e Importar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL REGISTRO DE ENTREGA / RECHAZO INDIVIDUAL */}
+      {modalCierreAbierto && pedidoACerrar && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '12px', maxWidth: '450px', width: '90%' }}>
+            <h3 style={{ margin: '0 0 10px 0' }}>📦 Registrar Estado de Entrega</h3>
+            <p style={{ fontSize: '13px', color: '#475569' }}>Pedido <strong>#{pedidoACerrar.id}</strong> - {pedidoACerrar.cliente}</p>
+            
+            <div style={{ margin: '15px 0' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Estado:</label>
+              <select value={estadoEntrega} onChange={(e) => setEstadoEntrega(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                <option value="Entregado">Entregado</option>
+                <option value="Rechazado">Rechazado</option>
+                <option value="Ausente">Cliente Ausente</option>
+              </select>
+            </div>
+
+            <div style={{ margin: '15px 0' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Observaciones / Comprobante:</label>
+              <textarea value={observacionEntrega} onChange={(e) => setObservacionEntrega(e.target.value)} placeholder="Ej. Recibió firma en remito Nº..." style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', height: '60px' }} />
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '20px' }}>
+              <button onClick={() => setModalCierreAbierto(false)} style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={confirmarCierrePedido} style={{ padding: '8px 16px', borderRadius: '6px', backgroundColor: '#0284c7', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>Guardar Estado</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CIERRE FINAL DE VIAJE DE CHOFER */}
+      {modalCierreFinalViaje && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '12px', maxWidth: '450px', width: '90%' }}>
+            <h3 style={{ margin: '0 0 10px 0' }}>🏁 Finalizar Hoja de Ruta</h3>
+            <p style={{ fontSize: '13px', color: '#475569' }}>¿Confirmas la finalización completa del viaje para <strong>{choferSeleccionado}</strong>? El vehículo asignado volverá a estar libre y disponible.</p>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '20px' }}>
+              <button onClick={() => setModalCierreFinalViaje(false)} style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #cbd5e1', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={confirmarFinalizacionTotalViaje} style={{ padding: '8px 16px', borderRadius: '6px', backgroundColor: '#047857', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>Finalizar Hoja de Ruta</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
