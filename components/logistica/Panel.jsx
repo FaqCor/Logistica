@@ -50,7 +50,7 @@ export default function Panel({ email }) {
   const [importeCombustible, setImporteCombustible] = useState('');
   const [kmLecturaCombustible, setKmLecturaCombustible] = useState('');
   const [filtroPatenteCombustible, setFiltroPatenteCombustible] = useState('');
-  const [idCargaEditando, setIdCargaEditando] = useState(null); // Control para editar registro
+  const [idCargaEditando, setIdCargaEditando] = useState(null);
 
   // ESTADOS PESTAÑA RÁPIDA DE ACTUALIZAR KM / HORAS
   const [patenteRapidaKm, setPatenteRapidaKm] = useState('');
@@ -278,7 +278,6 @@ export default function Panel({ email }) {
     const veh = flotaVehiculos.find(v => v.dominio === patenteCombustible) || flotaMantenimientoBD.find(v => v.patente === patenteCombustible);
 
     if (idCargaEditando) {
-      // Editar registro existente
       setCargasCombustibleBD(cargasCombustibleBD.map(c => c.id === idCargaEditando ? {
         ...c,
         patente: patenteCombustible,
@@ -290,7 +289,6 @@ export default function Panel({ email }) {
       setIdCargaEditando(null);
       alert('¡Registro de combustible modificado con éxito!');
     } else {
-      // Crear nuevo registro
       const nuevaCarga = {
         id: Date.now(),
         patente: patenteCombustible,
@@ -606,17 +604,27 @@ export default function Panel({ email }) {
     }, 600);
   };
 
+  // FUNCIONALIDAD DE AÑADIR RUTA A LA HOJA DE TRABAJO
   const agregarPedidoRuta = () => {
-    if (!pedidoSeleccionado) return;
+    if (!pedidoSeleccionado) {
+      alert('Por favor selecciona un pedido del desplegable.');
+      return;
+    }
     const listado = pedidosBD.length > 0 ? pedidosBD : pedidosEjemplo;
     const pedidoObj = listado.find(p => p.id.toString() === pedidoSeleccionado.toString());
-    if (pedidoObj && !pedidosAsignados.some(p => p.id === pedidoObj.id)) {
+
+    if (pedidoObj) {
+      if (pedidosAsignados.some(p => p.id === pedidoObj.id)) {
+        alert('Este pedido ya se encuentra agregado en la ruta actual.');
+        return;
+      }
       setFlotaVehiculos(flotaVehiculos.map(v => v.dominio === vehiculoSeleccionado ? { ...v, estado: 'En Viaje' } : v));
-      setPedidosAsignados([...pedidosAsignados, pedidoObj]);
+      setPedidosAsignados(prev => [...prev, pedidoObj]);
+      setPedidoSeleccionado('');
     }
-    setPedidoSeleccionado('');
   };
 
+  // OPTIMIZACIÓN Y CÁLCULO DE KILOMETRAJE TOTAL
   const optimizarRutaOrdenada = () => {
     const listaAOptimar = pedidosAsignados.length > 0 ? pedidosAsignados : (pedidosBD.length > 0 ? pedidosBD : pedidosEjemplo);
     if (listaAOptimar.length === 0) {
@@ -804,7 +812,8 @@ export default function Panel({ email }) {
     window.location.href = '/login';
   };
 
-  const listaMostrada = (pedidosBD.length > 0 ? pedidosBD : pedidosAsignados).filter(p => !pedidosArchivadosRuta.includes(p.id));
+  const listaAOrganizar = pedidosAsignados.length > 0 ? pedidosAsignados : (pedidosBD.length > 0 ? pedidosBD : pedidosEjemplo);
+  const listaMostrada = listaAOrganizar.filter(p => !pedidosArchivadosRuta.includes(p.id));
   const listaReportes = pedidosBD.length > 0 ? pedidosBD : [];
 
   const vehiculosOrdenadosCostos = [...flotaMantenimientoBD].sort((a, b) => Number(b.costo_mantenimiento || 0) - Number(a.costo_mantenimiento || 0));
@@ -839,7 +848,7 @@ export default function Panel({ email }) {
   return (
     <div style={{ backgroundColor: '#f1f5f9', minHeight: '100vh', fontFamily: 'sans-serif' }}>
       
-      {/* HEADER VERDE OSCURO CON ÁREA LOGÍSTICA CENTRADO */}
+      {/* HEADER VERDE OSCURO */}
       <div style={{ 
         backgroundColor: '#064e3b', 
         color: '#fff', 
@@ -974,7 +983,7 @@ export default function Panel({ email }) {
           )}
         </div>
 
-        {/* ESTILO DASHBOARD SUPERIOR (RESUMEN EJECUTIVO - 3 WIDGETS) */}
+        {/* RESUMEN EJECUTIVO */}
         {!esChofer && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px', marginBottom: '24px' }}>
             
@@ -1173,6 +1182,7 @@ export default function Panel({ email }) {
                               onClick={() => {
                                 if (confirm(`¿Deseas quitar el pedido #${p.id} de la ruta activa?`)) {
                                   setPedidosArchivadosRuta([...pedidosArchivadosRuta, p.id]);
+                                  setPedidosAsignados(pedidosAsignados.filter(item => item.id !== p.id));
                                 }
                               }}
                               title="Quitar pedido"
@@ -1211,13 +1221,16 @@ export default function Panel({ email }) {
                       style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: '8px', padding: '10px', fontSize: '14px', backgroundColor: '#fff' }}
                     >
                       <option value="">Seleccionar pedido para agregar a la ruta...</option>
-                      {pedidosBD.map((p) => (
+                      {(pedidosBD.length > 0 ? pedidosBD : pedidosEjemplo).map((p) => (
                         <option key={p.id} value={p.id}>
-                          #{p.id} - {p.cliente} ({p.provincia || 'Salta'}) | {p.direccion}
+                          #{p.id} - {p.cliente || p.Cliente} ({p.provincia || 'Salta'}) | {p.direccion || p.Direccion}
                         </option>
                       ))}
                     </select>
-                    <button onClick={agregarPedidoRuta} style={{ padding: '10px 18px', backgroundColor: '#e2e8f0', border: 'none', borderRadius: '8px', fontWeight: '500', cursor: 'pointer' }}>
+                    <button 
+                      onClick={agregarPedidoRuta} 
+                      style={{ padding: '10px 18px', backgroundColor: '#e2e8f0', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', color: '#1e293b' }}
+                    >
                       Añadir a Ruta
                     </button>
                   </div>
@@ -1687,7 +1700,7 @@ export default function Panel({ email }) {
           </div>
         )}
 
-        {/* PESTAÑA 5: COMBUSTIBLE Y RENDIMIENTO (CON BOTONES MODIFICAR / BORRAR) */}
+        {/* PESTAÑA 5: COMBUSTIBLE Y RENDIMIENTO */}
         {pestanaActiva === 'combustible' && !esChofer && (
           <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
             <h3 style={{ margin: '0 0 10px 0', fontSize: '20px', fontWeight: 'bold', color: '#0f172a' }}>
@@ -1697,7 +1710,6 @@ export default function Panel({ email }) {
               Carga los consumos de combustible por vehículo/unidad para analizar el gasto e identificaciones de alto consumo.
             </p>
 
-            {/* FORMULARIO DE REGISTRO / EDICIÓN */}
             <div style={{ backgroundColor: idCargaEditando ? '#fef3c7' : '#f0fdf4', border: `1px solid ${idCargaEditando ? '#fde68a' : '#bbf7d0'}`, padding: '20px', borderRadius: '10px', marginBottom: '25px' }}>
               <h4 style={{ margin: '0 0 15px 0', color: idCargaEditando ? '#92400e' : '#15803d', fontSize: '16px' }}>
                 {idCargaEditando ? '✏️ Modificar Carga de Combustible Seleccionada' : '📝 Cargar Nueva Carga de Combustible'}
@@ -1775,7 +1787,6 @@ export default function Panel({ email }) {
               </form>
             </div>
 
-            {/* FILTRO Y EXPORTACIÓN */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#334155' }}>Filtrar por Patente:</label>
@@ -1799,7 +1810,6 @@ export default function Panel({ email }) {
               </button>
             </div>
 
-            {/* TABLA DE CARGAS CON BOTONES MODIFICAR Y BORRAR */}
             <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
                 <thead>
