@@ -7,6 +7,7 @@ export default function TabRutas({
   setChoferSeleccionado,
   vehiculoSeleccionado,
   setVehiculoSeleccionado,
+  vehiculoPorChofer = {},
   listaChoferes,
   flotaVehiculos,
   pedidosPorChofer,
@@ -30,16 +31,30 @@ export default function TabRutas({
   const pedidosChoferActual = pedidosPorChofer[choferSeleccionado] || [];
   const listaMostrada = pedidosChoferActual.filter(p => !pedidosArchivadosRuta.includes(p.id));
 
+  // Obtener la lista de patentes de vehículos que actualmente están en uso por OTROS choferes que tienen pedidos activos
+  const vehiculosEnUsoPorOtros = Object.entries(vehiculoPorChofer)
+    .filter(([nombreCh, patente]) => nombreCh !== choferSeleccionado && (pedidosPorChofer[nombreCh] || []).length > 0)
+    .map(([_, patente]) => patente);
+
   return (
     <div>
+      {/* PANEL DE SELECCIÓN Y ASIGNACIÓN INDIVIDUAL DE RUTAS */}
       <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '24px' }}>
+        
         {!esChofer && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '15px', marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid #e2e8f0' }}>
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px', color: '#334155' }}>Seleccionar Chofer:</label>
               <select 
                 value={choferSeleccionado} 
-                onChange={(e) => setChoferSeleccionado(e.target.value)}
+                onChange={(e) => {
+                  const nuevoChofer = e.target.value;
+                  setChoferSeleccionado(nuevoChofer);
+                  // Si el nuevo chofer ya tenía un vehículo asignado previamente, seleccionarlo automáticamente
+                  if (vehiculoPorChofer[nuevoChofer]) {
+                    setVehiculoSeleccionado(vehiculoPorChofer[nuevoChofer]);
+                  }
+                }}
                 style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', backgroundColor: '#fff' }}
               >
                 {listaChoferes.map((ch, idx) => (
@@ -47,18 +62,32 @@ export default function TabRutas({
                 ))}
               </select>
             </div>
+
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px', color: '#334155' }}>Seleccionar Vehículo Disponible:</label>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px', color: '#334155' }}>Seleccionar Vehículo Disponibles:</label>
               <select 
                 value={vehiculoSeleccionado} 
                 onChange={(e) => setVehiculoSeleccionado(e.target.value)}
                 style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', backgroundColor: '#fff' }}
               >
-                {flotaVehiculos.map((v, idx) => (
-                  <option key={idx} value={v.dominio} disabled={v.enMantenimiento}>
-                    {v.dominio} - {v.modelo} ({v.tipoMedicion === 'Horas' ? `${v.horas} Horas` : `${v.km} km`})
-                  </option>
-                ))}
+                {flotaVehiculos.map((v, idx) => {
+                  const estaOcupado = vehiculosEnUsoPorOtros.includes(v.dominio) || v.enMantenimiento;
+                  const choferQueLoOcupa = Object.keys(vehiculoPorChofer).find(ch => vehiculoPorChofer[ch] === v.dominio && ch !== choferSeleccionado);
+
+                  return (
+                    <option 
+                      key={idx} 
+                      value={v.dominio} 
+                      disabled={estaOcupado}
+                      style={{
+                        backgroundColor: estaOcupado ? '#e2e8f0' : '#ffffff',
+                        color: estaOcupado ? '#94a3b8' : '#0f172a'
+                      }}
+                    >
+                      {v.dominio} - {v.modelo} ({v.tipoMedicion === 'Horas' ? `${v.horas} Horas` : `${v.km} km`}) {estaOcupado ? ` [Asignado a ${choferQueLoOcupa || 'Otro Chofer'}]` : ''}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           </div>
@@ -76,6 +105,7 @@ export default function TabRutas({
               <span style={{ fontSize: '12px', color: '#64748b' }}>Ruta activa para este chofer</span>
             </div>
           </div>
+
           {!esChofer && (
             <button 
               onClick={() => {

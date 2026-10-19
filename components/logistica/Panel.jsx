@@ -25,6 +25,9 @@ export default function Panel({ email }) {
   const [pedidosSeleccionadosCheckbox, setPedidosSeleccionadosCheckbox] = useState([]);
   const [pedidosArchivadosRuta, setPedidosArchivadosRuta] = useState([]);
 
+  // NUEVO: Estado para registrar qué vehículo tiene asignado cada chofer
+  const [vehiculoPorChofer, setVehiculoPorChofer] = useState({});
+
   // Estados de Flota, Mantenimiento, Combustible, etc.
   const [flotaMantenimientoBD, setFlotaMantenimientoBD] = useState([]);
   const [nuevaPatenteMto, setNuevaPatenteMto] = useState('');
@@ -96,7 +99,7 @@ export default function Panel({ email }) {
 
   const agregarPedidosSeleccionadosARuta = () => {
     if (pedidosSeleccionadosCheckbox.length === 0) {
-      alert('Selecciona al menos un pedido.');
+      alert('Por favor, selecciona al menos un pedido marcando su casilla.');
       return;
     }
     const listadoGlobal = pedidosBD.length > 0 ? pedidosBD : pedidosEjemplo;
@@ -105,8 +108,16 @@ export default function Panel({ email }) {
     const combinados = [...actualAsignados, ...pedidosAgn.filter(nuevo => !actualAsignados.some(ex => ex.id === nuevo.id))];
 
     setPedidosPorChofer({ ...pedidosPorChofer, [choferSeleccionado]: combinados });
+
+    // Vincular vehículo actual al chofer seleccionado
+    setVehiculoPorChofer(prev => ({
+      ...prev,
+      [choferSeleccionado]: vehiculoSeleccionado
+    }));
+
+    setFlotaVehiculos(flotaVehiculos.map(v => v.dominio === vehiculoSeleccionado ? { ...v, estado: 'En Viaje' } : v));
     setPedidosSeleccionadosCheckbox([]);
-    alert(`¡Se asignaron ${pedidosAgn.length} pedidos a ${choferSeleccionado}!`);
+    alert(`¡Se asignaron ${pedidosAgn.length} pedidos a ${choferSeleccionado} con la unidad ${vehiculoSeleccionado}!`);
   };
 
   const optimizarRutaEspecificaChofer = (nombreChofer) => {
@@ -197,6 +208,7 @@ export default function Panel({ email }) {
             setChoferSeleccionado={setChoferSeleccionado}
             vehiculoSeleccionado={vehiculoSeleccionado}
             setVehiculoSeleccionado={setVehiculoSeleccionado}
+            vehiculoPorChofer={vehiculoPorChofer}
             listaChoferes={listaChoferes}
             flotaVehiculos={flotaVehiculos}
             pedidosPorChofer={pedidosPorChofer}
