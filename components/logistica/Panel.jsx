@@ -1,13 +1,14 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import * as XLSX from 'xlsx';
-import TabRutas from './components/logistica/TabRutas';
-import TabFlota from './components/logistica/TabFlota';
-import TabCostos from './components/logistica/TabCostos';
-import TabPedidos from './components/logistica/TabPedidos';
+
+// IMPORTACIONES CORRECTAS (Panel.jsx está dentro de components/logistica/)
+import TabRutas from './TabRutas';
+import TabFlota from './TabFlota';
+import TabCostos from './TabCostos';
+import TabPedidos from './TabPedidos';
 
 export default function Panel({ email }) {
-  const esChofer = email && (email.toLowerCase().includes('chofer') || email.toLowerCase().includes('driver')); 
+  const esChofer = Boolean(email && (email.toLowerCase().includes('chofer') || email.toLowerCase().includes('driver'))); 
   const [pestanaActiva, setPestanaActiva] = useState('gestion');
 
   // Estados de control y fecha
@@ -27,26 +28,30 @@ export default function Panel({ email }) {
   const [pedidosPorChofer, setPedidosPorChofer] = useState({});
   const [vehiculoPorChofer, setVehiculoPorChofer] = useState({});
 
+  // Carga inicial desde localStorage al montar en el cliente
   useEffect(() => {
-    const pedidosGuardados = localStorage.getItem('pedidosPorChofer');
-    if (pedidosGuardados) {
-      try { setPedidosPorChofer(JSON.parse(pedidosGuardados)); } catch (e) { console.error(e); }
-    }
+    if (typeof window !== 'undefined') {
+      try {
+        const pedidosGuardados = localStorage.getItem('pedidosPorChofer');
+        if (pedidosGuardados) setPedidosPorChofer(JSON.parse(pedidosGuardados));
 
-    const vehiculosGuardados = localStorage.getItem('vehiculoPorChofer');
-    if (vehiculosGuardados) {
-      try { setVehiculoPorChofer(JSON.parse(vehiculosGuardados)); } catch (e) { console.error(e); }
+        const vehiculosGuardados = localStorage.getItem('vehiculoPorChofer');
+        if (vehiculosGuardados) setVehiculoPorChofer(JSON.parse(vehiculosGuardados));
+      } catch (e) {
+        console.error('Error al leer localStorage:', e);
+      }
     }
   }, []);
 
+  // Guardar en localStorage ante cambios
   useEffect(() => {
-    if (Object.keys(pedidosPorChofer).length > 0) {
+    if (typeof window !== 'undefined' && Object.keys(pedidosPorChofer).length > 0) {
       localStorage.setItem('pedidosPorChofer', JSON.stringify(pedidosPorChofer));
     }
   }, [pedidosPorChofer]);
 
   useEffect(() => {
-    if (Object.keys(vehiculoPorChofer).length > 0) {
+    if (typeof window !== 'undefined' && Object.keys(vehiculoPorChofer).length > 0) {
       localStorage.setItem('vehiculoPorChofer', JSON.stringify(vehiculoPorChofer));
     }
   }, [vehiculoPorChofer]);
@@ -55,8 +60,10 @@ export default function Panel({ email }) {
     if (confirm('¿Estás seguro de que deseas borrar todo el historial de rutas asignadas?')) {
       setPedidosPorChofer({});
       setVehiculoPorChofer({});
-      localStorage.removeItem('pedidosPorChofer');
-      localStorage.removeItem('vehiculoPorChofer');
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('pedidosPorChofer');
+        localStorage.removeItem('vehiculoPorChofer');
+      }
       alert('Historial borrado con éxito.');
     }
   };
@@ -96,8 +103,8 @@ export default function Panel({ email }) {
     { dominio: 'AF997GV', modelo: 'Mercedes Benz Sprinter', km: 98200, horas: 0, tipoMedicion: 'Kilómetros', estado: 'Disponible', enMantenimiento: false }
   ]);
 
-  const [choferSeleccionado, setChoferSeleccionado] = useState(listaChoferes[0]?.nombre || 'Juan Pérez');
-  const [vehiculoSeleccionado, setVehiculoSeleccionado] = useState(flotaVehiculos[0]?.dominio || 'NEB732');
+  const [choferSeleccionado, setChoferSeleccionado] = useState('Juan Pérez');
+  const [vehiculoSeleccionado, setVehiculoSeleccionado] = useState('NEB732');
   
   const pedidosEjemplo = [
     { id: 101, cliente: 'Ferretería El Norte', provincia: 'Salta', localidad: 'General Güemes', direccion: 'Av. San Martín 450', bultos: 12, kmDesdeCD: 50, estado_entrega: 'Pendiente' },
@@ -107,7 +114,6 @@ export default function Panel({ email }) {
   
   const [kmTotalRuta, setKmTotalRuta] = useState(0);
 
-  // Modales
   const [modalCierreAbierto, setModalCierreAbierto] = useState(false);
   const [pedidoACerrar, setPedidoACerrar] = useState(null);
   const [estadoEntrega, setEstadoEntrega] = useState('Entregado');
@@ -122,7 +128,9 @@ export default function Panel({ email }) {
         const data = await res.json();
         if (data.success && Array.isArray(data.pedidos)) setPedidosBD(data.pedidos);
       }
-    } catch (err) { console.warn('Cargando base de datos local'); }
+    } catch (err) {
+      console.warn('Cargando base de datos local');
+    }
   };
 
   useEffect(() => { cargarDatosBD(); }, []);
@@ -151,8 +159,10 @@ export default function Panel({ email }) {
     setPedidosPorChofer(nuevosPedidosPorChofer);
     setVehiculoPorChofer(nuevosVehiculosPorChofer);
 
-    localStorage.setItem('pedidosPorChofer', JSON.stringify(nuevosPedidosPorChofer));
-    localStorage.setItem('vehiculoPorChofer', JSON.stringify(nuevosVehiculosPorChofer));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('pedidosPorChofer', JSON.stringify(nuevosPedidosPorChofer));
+      localStorage.setItem('vehiculoPorChofer', JSON.stringify(nuevosVehiculosPorChofer));
+    }
 
     setFlotaVehiculos(flotaVehiculos.map(v => v.dominio === vehiculoSeleccionado ? { ...v, estado: 'En Viaje' } : v));
     setPedidosSeleccionadosCheckbox([]);
@@ -164,7 +174,9 @@ export default function Panel({ email }) {
     const actualizados = { ...pedidosPorChofer, [nombreChofer]: listaNueva };
     
     setPedidosPorChofer(actualizados);
-    localStorage.setItem('pedidosPorChofer', JSON.stringify(actualizados));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('pedidosPorChofer', JSON.stringify(actualizados));
+    }
   };
 
   const optimizarRutaEspecificaChofer = (nombreChofer) => {
@@ -176,7 +188,9 @@ export default function Panel({ email }) {
 
     const actualizados = { ...pedidosPorChofer, [nombreChofer]: rutaOrdenada };
     setPedidosPorChofer(actualizados);
-    localStorage.setItem('pedidosPorChofer', JSON.stringify(actualizados));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('pedidosPorChofer', JSON.stringify(actualizados));
+    }
 
     if (nombreChofer === choferSeleccionado) setKmTotalRuta(kmTotalCalculado);
     alert(`¡Ruta optimizada para ${nombreChofer}! Total: ${kmTotalCalculado} KM.`);
@@ -248,7 +262,6 @@ export default function Panel({ email }) {
       </div>
 
       <div style={{ padding: '24px', maxWidth: '1100px', margin: '0 auto' }}>
-        {/* NAVEGACIÓN PESTAÑAS */}
         {!esChofer && (
           <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
             <button onClick={() => setPestanaActiva('gestion')} style={{ backgroundColor: pestanaActiva === 'gestion' ? '#1e293b' : '#64748b', color: '#fff', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>🗺️ Rutas</button>
@@ -258,7 +271,6 @@ export default function Panel({ email }) {
           </div>
         )}
 
-        {/* PESTAÑA RUTAS (CON PROPS VINCULADAS) */}
         {pestanaActiva === 'gestion' && (
           <TabRutas 
             esChofer={esChofer}
@@ -290,12 +302,10 @@ export default function Panel({ email }) {
           />
         )}
 
-        {/* PESTAÑA REPORTES */}
         {pestanaActiva === 'reportes' && !esChofer && (
           <TabPedidos listaReportes={listaReportes} exportarReporteExcel={exportarReporteExcel} />
         )}
 
-        {/* PESTAÑA FLOTA Y PERSONAL */}
         {pestanaActiva === 'flotaPersonal' && !esChofer && (
           <TabFlota 
             personalEmpresa={personalEmpresa}
@@ -325,7 +335,6 @@ export default function Panel({ email }) {
           />
         )}
 
-        {/* PESTAÑA MANTENIMIENTO */}
         {pestanaActiva === 'mantenimientoFlota' && !esChofer && (
           <TabCostos 
             listaTodasPatentes={listaTodasPatentes}
