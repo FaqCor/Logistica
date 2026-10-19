@@ -14,6 +14,7 @@ export default function TabRutas({
   pedidosSeleccionadosCheckbox,
   toggleSeleccionPedidoCheckbox,
   agregarPedidosSeleccionadosARuta,
+  quitarPedidoDeChofer,
   optimizarRutaOrdenada,
   optimizarRutaEspecificaChofer,
   enviarRutaWhatsApp,
@@ -28,12 +29,10 @@ export default function TabRutas({
   setModalCierreFinalViaje,
   fechaFormateada
 }) {
-  // Si es chofer, forzamos el nombre a "Juan Pérez" o el email correspondiente
   const nombreChoferActivo = esChofer ? 'Juan Pérez' : choferSeleccionado;
   const pedidosChoferActual = pedidosPorChofer[nombreChoferActivo] || [];
   const listaMostrada = pedidosChoferActual.filter(p => !pedidosArchivadosRuta.includes(p.id));
 
-  // Función para abrir la navegación directa en Google Maps GPS desde el Hub
   const abrirGoogleMaps = (direccion, localidad, provincia) => {
     const destinoFormatted = `${direccion}, ${localidad || 'Salta'}, ${provincia || 'Salta'}, Argentina`;
     const urlMaps = `https://www.google.com/maps/dir/?api=1&origin=Maestro+Pedernera+1217,+Salta&destination=${encodeURIComponent(destinoFormatted)}&travelmode=driving`;
@@ -112,7 +111,7 @@ export default function TabRutas({
         </div>
       )}
 
-      {/* VISTA ACTIVA DEL CHOFER O DEL ENCARGADO */}
+      {/* VISTA ACTIVA DE RUTA */}
       <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
           <div>
@@ -132,7 +131,7 @@ export default function TabRutas({
         {listaMostrada.length === 0 ? (
           <div style={{ padding: '30px', textAlign: 'center', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
             <p style={{ margin: 0, fontSize: '14px', color: '#64748b' }}>
-              {esChofer ? 'No tienes pedidos asignados en este momento. El encargado de logística te los asignará en breve.' : `No hay paradas asignadas todavía para ${choferSeleccionado}.`}
+              {esChofer ? 'No tienes pedidos asignados en este momento.' : `No hay paradas asignadas todavía para ${choferSeleccionado}.`}
             </p>
           </div>
         ) : (
@@ -140,41 +139,48 @@ export default function TabRutas({
             {listaMostrada.map((p, idx) => {
               const telefonoCliente = p.telefono || p.celular || '3874556677';
               return (
-                <div key={idx} style={{ padding: '16px', backgroundColor: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '10px', borderLeft: '6px solid #0284c7' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
-                    <div>
-                      <span style={{ backgroundColor: '#0284c7', color: '#fff', fontWeight: 'bold', padding: '3px 8px', borderRadius: '4px', marginRight: '8px', fontSize: '11px' }}>
+                <div key={idx} style={{ padding: '16px', backgroundColor: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '10px', borderLeft: '6px solid #0284c7', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1 1 300px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                      <span style={{ backgroundColor: '#0284c7', color: '#fff', fontWeight: 'bold', padding: '3px 8px', borderRadius: '4px', fontSize: '11px' }}>
                         PARADA #{idx + 1}
                       </span>
                       <strong style={{ fontSize: '16px', color: '#0f172a' }}>#{p.id} - {p.cliente || p.Cliente || 'Cliente'}</strong> ({p.provincia || 'Salta'})
                     </div>
-                    <span style={{ fontSize: '12px', color: p.estado_entrega === 'Entregado' ? '#166534' : '#854d0e', backgroundColor: p.estado_entrega === 'Entregado' ? '#dcfce7' : '#fef9c3', padding: '3px 8px', borderRadius: '4px', fontWeight: 'bold' }}>
-                      {p.estado_entrega || 'Pendiente'}
-                    </span>
-                  </div>
 
-                  <p style={{ margin: '4px 0', fontSize: '13px', color: '#334155' }}>📍 <strong>Dirección:</strong> {p.direccion || p.Direccion} ({p.localidad || 'Salta'})</p>
-                  <p style={{ margin: '4px 0 12px 0', fontSize: '13px', color: '#334155' }}>📦 <strong>Bultos:</strong> {p.bultos || 1}</p>
+                    <p style={{ margin: '4px 0', fontSize: '13px', color: '#334155' }}>📍 <strong>Dirección:</strong> {p.direccion || p.Direccion} ({p.localidad || 'Salta'})</p>
+                    <p style={{ margin: '4px 0 12px 0', fontSize: '13px', color: '#334155' }}>📦 <strong>Bultos:</strong> {p.bultos || 1}</p>
 
-                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                    {/* BOTÓN GOOGLE MAPS GPS */}
-                    <button 
-                      onClick={() => abrirGoogleMaps(p.direccion || p.Direccion, p.localidad, p.provincia)}
-                      style={{ padding: '10px 14px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-                    >
-                      🗺️ Navegar con Google Maps
-                    </button>
-
-                    <a href={`tel:${telefonoCliente}`} style={{ padding: '10px 14px', backgroundColor: '#16a34a', color: '#fff', borderRadius: '8px', textDecoration: 'none', fontSize: '13px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      📞 Llamar
-                    </a>
-
-                    {esChofer && (
-                      <button onClick={() => { setPedidoACerrar(p); setModalCierreAbierto(true); }} style={{ padding: '10px 14px', backgroundColor: '#064e3b', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}>
-                        📝 Rendir Entrega / Viáticos
+                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                      <button 
+                        onClick={() => abrirGoogleMaps(p.direccion || p.Direccion, p.localidad, p.provincia)}
+                        style={{ padding: '8px 12px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+                      >
+                        🗺️ Google Maps
                       </button>
-                    )}
+
+                      <a href={`tel:${telefonoCliente}`} style={{ padding: '8px 12px', backgroundColor: '#16a34a', color: '#fff', borderRadius: '6px', textDecoration: 'none', fontSize: '12px', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center' }}>
+                        📞 Llamar
+                      </a>
+
+                      {esChofer && (
+                        <button onClick={() => { setPedidoACerrar(p); setModalCierreAbierto(true); }} style={{ padding: '8px 12px', backgroundColor: '#064e3b', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
+                          📝 Rendir Entrega
+                        </button>
+                      )}
+                    </div>
                   </div>
+
+                  {/* BOTÓN QUITAR DE ESTA RUTA (SE MUESTRA AL EXTREMO DERECHO) */}
+                  {!esChofer && (
+                    <button 
+                      onClick={() => quitarPedidoDeChofer(choferSeleccionado, p.id)}
+                      title="Quitar pedido para volver a dejarlo disponible"
+                      style={{ padding: '8px 14px', backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+                    >
+                      ❌ Quitar
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -182,18 +188,64 @@ export default function TabRutas({
         )}
       </div>
 
-      {/* REPORTE CONSOLIDADO (SOLO LOGÍSTICA) */}
-      {!esChofer && nombresChoferesConRuta.length > 0 && (
+      {/* REPORTE CONSOLIDADO CON BOTÓN QUITAR EN CADA FILA */}
+      {!esChofer && (
         <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 'bold', color: '#0f172a' }}>📋 Reporte de Viajes Asignados por Chofer</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            {nombresChoferesConRuta.map((nombreCh, i) => (
-              <div key={i} style={{ border: '1px solid #cbd5e1', borderRadius: '8px', padding: '14px', backgroundColor: '#f8fafc' }}>
-                <h4 style={{ margin: '0 0 8px 0', color: '#1e293b' }}>🚚 Chofer: <strong>{nombreCh}</strong></h4>
-                <p style={{ margin: 0, fontSize: '13px', color: '#047857', fontWeight: 'bold' }}>{(pedidosPorChofer[nombreCh] || []).length} entregas asignadas</p>
-              </div>
-            ))}
-          </div>
+          <h3 style={{ margin: '0 0 6px 0', fontSize: '18px', fontWeight: 'bold', color: '#0f172a' }}>📋 Reporte de Viajes Asignados y Organizados para Hoy</h3>
+          <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: '#64748b' }}>Visualiza todas las hojas de ruta listas por chofer.</p>
+
+          {nombresChoferesConRuta.length === 0 ? (
+            <div style={{ padding: '20px', textAlign: 'center', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
+              <p style={{ margin: 0, fontSize: '14px', color: '#64748b' }}>Aún no has preparado viajes para ningún chofer hoy.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {nombresChoferesConRuta.map((nombreChofer, idx) => {
+                const listaPedidosChofer = pedidosPorChofer[nombreChofer] || [];
+                const maxDist = Math.max(...listaPedidosChofer.map(p => Number(p.kmDesdeCD || p.km_desde_cd || 50)));
+                const kmEstimado = Math.round(maxDist * 2.15);
+
+                return (
+                  <div key={idx} style={{ border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px', backgroundColor: '#f8fafc' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: '16px', color: '#1e293b' }}>🚚 Chofer: <strong>{nombreChofer}</strong></h4>
+                        <span style={{ fontSize: '12px', color: '#047857', fontWeight: 'bold' }}>{listaPedidosChofer.length} entregas programadas | Recorrido aprox: {kmEstimado} KM</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        <button onClick={() => optimizarRutaEspecificaChofer(nombreChofer)} style={{ padding: '8px 14px', backgroundColor: '#facc15', color: '#713f12', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>⚡ Optimizar Ruta de este Chofer</button>
+                        <button onClick={() => enviarRutaWhatsAppEspecifico(nombreChofer)} style={{ padding: '8px 14px', backgroundColor: '#064e3b', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>📲 Enviar Orden por WhatsApp</button>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {listaPedidosChofer.map((p, index) => (
+                        <div key={p.id} style={{ padding: '10px 12px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', gap: '12px' }}>
+                          <div>
+                            <span style={{ backgroundColor: '#0284c7', color: '#fff', fontWeight: 'bold', padding: '2px 8px', borderRadius: '4px', marginRight: '10px', fontSize: '11px' }}>Parada #{index + 1}</span>
+                            <strong>#{p.id} - ({p.provincia || 'Salta'})</strong> | 📍 {p.direccion || p.Direccion}
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                            <span style={{ fontSize: '12px', color: '#64748b' }}>📦 Bultos: {p.bultos || 1}</span>
+                            
+                            {/* BOTÓN QUITAR EN EL EXTREMO DERECHO */}
+                            <button 
+                              onClick={() => quitarPedidoDeChofer(nombreChofer, p.id)}
+                              title="Quitar pedido"
+                              style={{ padding: '4px 10px', backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
+                            >
+                              ❌ Quitar
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>

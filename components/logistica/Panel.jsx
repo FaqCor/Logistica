@@ -21,12 +21,39 @@ export default function Panel({ email }) {
   const [datosExcel, setDatosExcel] = useState([]);
   const [importando, setImportando] = useState(false);
   const [pedidosBD, setPedidosBD] = useState([]);
-  const [pedidosPorChofer, setPedidosPorChofer] = useState({});
+
+  // 1. PERSISTENCIA: Inicializar leyendo desde localStorage si existe
+  const [pedidosPorChofer, setPedidosPorChofer] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const guardado = localStorage.getItem('pedidosPorChofer');
+      return guardado ? JSON.parse(guardado) : {};
+    }
+    return {};
+  });
+
+  const [vehiculoPorChofer, setVehiculoPorChofer] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const guardado = localStorage.getItem('vehiculoPorChofer');
+      return guardado ? JSON.parse(guardado) : {};
+    }
+    return {};
+  });
+
   const [pedidosSeleccionadosCheckbox, setPedidosSeleccionadosCheckbox] = useState([]);
   const [pedidosArchivadosRuta, setPedidosArchivadosRuta] = useState([]);
 
-  // NUEVO: Estado para registrar qué vehículo tiene asignado cada chofer
-  const [vehiculoPorChofer, setVehiculoPorChofer] = useState({});
+  // Guardar automáticamente en localStorage cuando cambien las rutas o vehículos asignados
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('pedidosPorChofer', JSON.stringify(pedidosPorChofer));
+    }
+  }, [pedidosPorChofer]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('vehiculoPorChofer', JSON.stringify(vehiculoPorChofer));
+    }
+  }, [vehiculoPorChofer]);
 
   // Estados de Flota, Mantenimiento, Combustible, etc.
   const [flotaMantenimientoBD, setFlotaMantenimientoBD] = useState([]);
@@ -64,7 +91,8 @@ export default function Panel({ email }) {
   const [vehiculoSeleccionado, setVehiculoSeleccionado] = useState(flotaVehiculos[0]?.dominio || 'NEB732');
   const pedidosEjemplo = [
     { id: 101, cliente: 'Ferretería El Norte', provincia: 'Salta', localidad: 'General Güemes', direccion: 'Av. San Martín 450', bultos: 12, kmDesdeCD: 50, estado_entrega: 'Pendiente' },
-    { id: 102, cliente: 'Corralón San Miguel', provincia: 'Tucumán', localidad: 'San Miguel de Tucumán', direccion: 'Av. Kirchner 1200', bultos: 45, kmDesdeCD: 310, estado_entrega: 'Pendiente' }
+    { id: 102, cliente: 'Corralón San Miguel', provincia: 'Tucumán', localidad: 'San Miguel de Tucumán', direccion: 'Av. Kirchner 1200', bultos: 45, kmDesdeCD: 310, estado_entrega: 'Pendiente' },
+    { id: 103, cliente: 'Distribuidora del Centro', provincia: 'Santiago del Estero', localidad: 'Santiago Capital', direccion: 'Belgrano Sur 890', bultos: 30, kmDesdeCD: 470, estado_entrega: 'Pendiente' }
   ];
   const [kmTotalRuta, setKmTotalRuta] = useState(0);
 
@@ -73,7 +101,6 @@ export default function Panel({ email }) {
   const [pedidoACerrar, setPedidoACerrar] = useState(null);
   const [estadoEntrega, setEstadoEntrega] = useState('Entregado');
   const [modalCierreFinalViaje, setModalCierreFinalViaje] = useState(false);
-  const [kmFinalViajeSalta, setKmFinalViajeSalta] = useState('');
 
   const listaTodasPatentes = Array.from(new Set([...flotaVehiculos.map(v => v.dominio), ...flotaMantenimientoBD.map(v => v.patente)])).filter(Boolean);
 
@@ -109,7 +136,6 @@ export default function Panel({ email }) {
 
     setPedidosPorChofer({ ...pedidosPorChofer, [choferSeleccionado]: combinados });
 
-    // Vincular vehículo actual al chofer seleccionado
     setVehiculoPorChofer(prev => ({
       ...prev,
       [choferSeleccionado]: vehiculoSeleccionado
@@ -117,7 +143,17 @@ export default function Panel({ email }) {
 
     setFlotaVehiculos(flotaVehiculos.map(v => v.dominio === vehiculoSeleccionado ? { ...v, estado: 'En Viaje' } : v));
     setPedidosSeleccionadosCheckbox([]);
-    alert(`¡Se asignaron ${pedidosAgn.length} pedidos a ${choferSeleccionado} con la unidad ${vehiculoSeleccionado}!`);
+  };
+
+  // NUEVA FUNCIÓN: Quitar un pedido de la asignación de un chofer específico
+  const quitarPedidoDeChofer = (nombreChofer, idPedido) => {
+    const listaActual = pedidosPorChofer[nombreChofer] || [];
+    const listaNueva = listaActual.filter(p => p.id !== idPedido);
+    
+    setPedidosPorChofer({
+      ...pedidosPorChofer,
+      [nombreChofer]: listaNueva
+    });
   };
 
   const optimizarRutaEspecificaChofer = (nombreChofer) => {
@@ -215,6 +251,7 @@ export default function Panel({ email }) {
             pedidosSeleccionadosCheckbox={pedidosSeleccionadosCheckbox}
             toggleSeleccionPedidoCheckbox={toggleSeleccionPedidoCheckbox}
             agregarPedidosSeleccionadosARuta={agregarPedidosSeleccionadosARuta}
+            quitarPedidoDeChofer={quitarPedidoDeChofer}
             optimizarRutaOrdenada={optimizarRutaOrdenada}
             optimizarRutaEspecificaChofer={optimizarRutaEspecificaChofer}
             enviarRutaWhatsApp={enviarRutaWhatsApp}
