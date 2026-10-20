@@ -68,8 +68,12 @@ export default function Panel({ email: emailProp }) {
     const emailLimpio = loginEmailInput.trim().toLowerCase();
     const passLimpia = loginPasswordInput.trim();
 
+    // Verificamos si el correo ingresado está registrado en la lista de personal
+    const existeEnPersonal = personalEmpresa.find(p => p.email && p.email.trim().toLowerCase() === emailLimpio);
+
+    // Permite loguearse a logistica@demo.com, chofer@demo.com o cualquier correo registrado en el plantel con la clave demo1234
     if (
-      (emailLimpio === 'logistica@demo.com' || emailLimpio === 'chofer@demo.com') &&
+      (emailLimpio === 'logistica@demo.com' || emailLimpio === 'chofer@demo.com' || existeEnPersonal) &&
       passLimpia === 'demo1234'
     ) {
       setUserEmail(emailLimpio);
@@ -77,7 +81,7 @@ export default function Panel({ email: emailProp }) {
       setLoginEmailInput('');
       setLoginPasswordInput('');
     } else {
-      setLoginError('Usuario o contraseña incorrectos. Usa logistica@demo.com o chofer@demo.com con clave demo1234.');
+      setLoginError('Usuario o contraseña incorrectos. Ingresa con un correo registrado en el plantel y la clave demo1234.');
     }
   };
 
