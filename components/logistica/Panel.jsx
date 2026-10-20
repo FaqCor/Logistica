@@ -114,7 +114,7 @@ export default function Panel({ email: emailProp }) {
     }
   }, [patenteRapidaKm]);
 
-  // Función para importar Excel de Clientes y reemplazar los envíos pendientes
+  // Función para importar Excel de Clientes leyendo columnas B, C y H exactas por fila
   const importarExcelClientes = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -126,20 +126,36 @@ export default function Panel({ email: emailProp }) {
         const workbook = XLSX.read(bstr, { type: 'binary' });
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
-        const data = XLSX.utils.sheet_to_json(worksheet);
+        
+        // Lee la hoja como una matriz de filas (array de arrays)
+        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-        if (data && data.length > 0) {
-          const nuevosPedidos = data.map((row, index) => ({
-            id: row.id || row.N_Pedido || row['N° Pedido'] || (100 + index),
-            cliente: row.cliente || row.Cliente || 'Cliente Distribuidora',
-            provincia: row.provincia || row.Provincia || 'Salta',
-            direccion: row.direccion || row.Direccion || row.Dirección || 'Dirección no especificada',
-            bultos: Number(row.bultos || row.Bultos || 1)
-          }));
-          setPedidosBD(nuevosPedidos);
-          alert(`¡Se importaron ${nuevosPedidos.length} clientes/pedidos correctamente desde el Excel!`);
+        if (rows && rows.length > 0) {
+          const nuevosPedidos = [];
+          
+          // Omitimos la primera fila si es cabecera (empezamos en i = 1, o i = 0 si no tiene cabecera)
+          for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            // Validamos que la fila tenga datos
+            if (row && (row[1] || row[2] || row[7])) {
+              nuevosPedidos.push({
+                id: 100 + i,
+                cliente: row[1] || 'Cliente Distribuidora', // Columna B
+                direccion: row[2] || 'Dirección no especificada', // Columna C
+                provincia: row[7] || 'Salta', // Columna H
+                bultos: 1
+              });
+            }
+          }
+
+          if (nuevosPedidos.length > 0) {
+            setPedidosBD(nuevosPedidos);
+            alert(`¡Se importaron ${nuevosPedidos.length} clientes correctamente desde las columnas B, C y H del Excel!`);
+          } else {
+            alert('No se encontraron datos válidos en las columnas B, C o H.');
+          }
         } else {
-          alert('El archivo Excel está vacío o no tiene el formato esperado.');
+          alert('El archivo Excel está vacío.');
         }
       } catch (error) {
         alert('Error al procesar el archivo Excel.');
