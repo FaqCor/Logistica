@@ -8,8 +8,15 @@ import TabPedidos from './TabPedidos';
 import TabFallas from './TabFallas';
 import TabActualizarKm from './TabActualizarKm';
 
-export default function Panel({ email }) {
-  const esChofer = email && (email.toLowerCase().includes('chofer') || email.toLowerCase().includes('driver')); 
+export default function Panel({ email: emailProp }) {
+  // Estado de autenticación local con credenciales demo predeterminadas
+  const [userEmail, setUserEmail] = useState(emailProp || '');
+  const [isLoggedIn, setIsLoggedIn] = useState(Boolean(emailProp));
+  const [loginEmailInput, setLoginEmailInput] = useState('');
+  const [loginPasswordInput, setLoginPasswordInput] = useState('');
+  const [loginError, setLoginError] = useState('');
+
+  const esChofer = userEmail && (userEmail.toLowerCase().includes('chofer') || userEmail.toLowerCase().includes('driver')); 
   const [pestanaActiva, setPestanaActiva] = useState('gestion');
 
   const hoy = new Date();
@@ -25,10 +32,6 @@ export default function Panel({ email }) {
   // Estados de Mantenimiento / Costos
   const [flotaMantenimientoBD, setFlotaMantenimientoBD] = useState([]);
   const [nuevaPatenteMto, setNuevaPatenteMto] = useState('');
-  const [nuevoModeloMto, setNuevoModeloMto] = useState('');
-  const [nuevoKmActualMto, setNuevoKmActualMto] = useState('');
-  const [nuevaFrecuenciaMto, setNuevaFrecuenciaMto] = useState('15000');
-  const [nuevoUltimoMtoKm, setNuevoUltimoMtoKm] = useState('');
   const [nuevoCostoMto, setNuevoCostoMto] = useState('');
   const [filtroPatenteMto, setFiltroPatenteMto] = useState('');
 
@@ -59,7 +62,6 @@ export default function Panel({ email }) {
 
   const [choferSeleccionado, setChoferSeleccionado] = useState(listaChoferes[0]?.nombre || 'Juan Pérez');
   const [vehiculoSeleccionado, setVehiculoSeleccionado] = useState(flotaVehiculos[0]?.dominio || 'NEB732');
-  const [kmTotalRuta, setKmTotalRuta] = useState(0);
 
   // Modales
   const [modalCierreAbierto, setModalCierreAbierto] = useState(false);
@@ -70,6 +72,32 @@ export default function Panel({ email }) {
     ...flotaVehiculos.map(v => v.dominio),
     ...flotaMantenimientoBD.map(v => v.patente)
   ])).filter(Boolean);
+
+  // Manejo de inicio de sesión
+  const handleLogin = (e) => {
+    e.preventDefault();
+    setLoginError('');
+
+    const emailLimpio = loginEmailInput.trim().toLowerCase();
+    const passLimpia = loginPasswordInput.trim();
+
+    if (
+      (emailLimpio === 'logistica@demo.com' || emailLimpio === 'chofer@demo.com') &&
+      passLimpia === 'demo1234'
+    ) {
+      setUserEmail(emailLimpio);
+      setIsLoggedIn(true);
+      setLoginEmailInput('');
+      setLoginPasswordInput('');
+    } else {
+      setLoginError('Usuario o contraseña incorrectos. Usa logistica@demo.com o chofer@demo.com con clave demo1234.');
+    }
+  };
+
+  const cerrarSesion = () => {
+    setIsLoggedIn(false);
+    setUserEmail('');
+  };
 
   // Cargar datos desde la API (Neon DB)
   const cargarDatosBD = async () => {
@@ -90,7 +118,11 @@ export default function Panel({ email }) {
     }
   };
 
-  useEffect(() => { cargarDatosBD(); }, []);
+  useEffect(() => { 
+    if (isLoggedIn) {
+      cargarDatosBD(); 
+    }
+  }, [isLoggedIn]);
 
   useEffect(() => {
     if (patenteRapidaKm) {
@@ -188,13 +220,72 @@ export default function Panel({ email }) {
     XLSX.writeFile(wb, 'Reporte_Logistica.xlsx');
   };
 
-  const cerrarSesion = () => { window.location.href = '/login'; };
-
   const todosPedidosAsignadosIDs = Object.values(pedidosPorChofer).flat().map(p => p.id);
   const listaPedidosDisponibles = pedidosBD.filter(p => !todosPedidosAsignadosIDs.includes(p.id));
   const nombresChoferesConRuta = Object.keys(pedidosPorChofer).filter(ch => (pedidosPorChofer[ch] || []).length > 0);
   const flotaMantenimientoFiltrada = filtroPatenteMto ? flotaMantenimientoBD.filter(v => v.patente === filtroPatenteMto) : flotaMantenimientoBD;
 
+  // SI NO ESTÁ LOGUEADO, MUESTRA LA PANTALLA DE INICIO DE SESIÓN
+  if (!isLoggedIn) {
+    return (
+      <div style={{ backgroundColor: '#064e3b', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif', padding: '20px' }}>
+        <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '32px', width: '100%', maxWidth: '420px', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>
+          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+            <h2 style={{ color: '#064e3b', margin: '0 0 6px 0', fontSize: '24px' }}>Área Logística</h2>
+            <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>Inicia sesión para acceder al sistema</p>
+          </div>
+
+          {loginError && (
+            <div style={{ backgroundColor: '#fee2e2', color: '#b91c1c', padding: '10px', borderRadius: '6px', fontSize: '12px', marginBottom: '16px', fontWeight: 'bold' }}>
+              {loginError}
+            </div>
+          )}
+
+          <form onSubmit={handleLogin}>
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#334155', marginBottom: '6px' }}>Correo Electrónico:</label>
+              <input 
+                type="email" 
+                placeholder="logistica@demo.com o chofer@demo.com" 
+                value={loginEmailInput} 
+                onChange={(e) => setLoginEmailInput(e.target.value)} 
+                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', boxSizing: 'border-box' }}
+                required 
+              />
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#334155', marginBottom: '6px' }}>Contraseña:</label>
+              <input 
+                type="password" 
+                placeholder="demo1234" 
+                value={loginPasswordInput} 
+                onChange={(e) => setLoginPasswordInput(e.target.value)} 
+                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', boxSizing: 'border-box' }}
+                required 
+              />
+            </div>
+
+            <button 
+              type="submit" 
+              style={{ width: '100%', padding: '12px', backgroundColor: '#047857', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer' }}
+            >
+              Iniciar Sesión
+            </button>
+          </form>
+
+          <div style={{ marginTop: '20px', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', fontSize: '12px', color: '#475569', textAlign: 'center' }}>
+            <strong>Accesos de prueba:</strong><br/>
+            Logística: <code>logistica@demo.com</code><br/>
+            Chofer: <code>chofer@demo.com</code><br/>
+            Contraseña para ambos: <code>demo1234</code>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // SI YA ESTÁ LOGUEADO, MUESTRA EL PANEL COMPLETO CON EL BOTÓN SALIR EN EL HEADER
   return (
     <div style={{ backgroundColor: '#f1f5f9', minHeight: '100vh', fontFamily: 'sans-serif' }}>
       
@@ -206,7 +297,7 @@ export default function Panel({ email }) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <span style={{ color: '#0f172a', fontWeight: '900', fontSize: '15px', padding: '2px 10px', background: '#fff', borderRadius: '4px' }}>{vehiculoSeleccionado}</span>
-          <button onClick={cerrarSesion} style={{ background: 'transparent', color: '#fff', border: '1px solid #fff', borderRadius: '6px', padding: '6px 14px', cursor: 'pointer' }}>Salir</button>
+          <button onClick={cerrarSesion} style={{ background: 'transparent', color: '#fff', border: '1px solid #fff', borderRadius: '6px', padding: '6px 14px', cursor: 'pointer', fontWeight: 'bold' }}>Salir</button>
         </div>
       </div>
 
@@ -217,7 +308,7 @@ export default function Panel({ email }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
           <div>
             <h2 style={{ fontSize: '22px', fontWeight: 'bold', margin: 0, color: '#0f172a' }}>Gestión Logística y Control de Vehículos</h2>
-            {email && <p style={{ fontSize: '13px', color: '#64748b', margin: '4px 0 0 0' }}>Conectado como: <strong>{email}</strong> (Encargado de Logística) | Hub: Maestro Pedernera 1217</p>}
+            {userEmail && <p style={{ fontSize: '13px', color: '#64748b', margin: '4px 0 0 0' }}>Conectado como: <strong>{userEmail}</strong> ({esChofer ? 'Chofer' : 'Encargado de Logística'}) | Hub: Maestro Pedernera 1217</p>}
           </div>
 
           {!esChofer && (
