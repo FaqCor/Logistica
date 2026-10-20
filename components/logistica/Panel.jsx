@@ -4,12 +4,13 @@ import * as XLSX from 'xlsx';
 
 export default function Panel({ email: emailProp }) {
   const [userEmail, setUserEmail] = useState(emailProp || '');
+  const [userRole, setUserRole] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(Boolean(emailProp));
   const [loginEmailInput, setLoginEmailInput] = useState('');
   const [loginPasswordInput, setLoginPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
 
-  const esChofer = userEmail && (userEmail.toLowerCase().includes('chofer') || userEmail.toLowerCase().includes('driver')); 
+  const esChofer = userRole === 'chofer' || (userEmail && (userEmail.toLowerCase().includes('chofer') || userEmail.toLowerCase().includes('driver'))); 
   const [pestanaActiva, setPestanaActiva] = useState('gestion');
 
   const hoy = new Date();
@@ -68,26 +69,45 @@ export default function Panel({ email: emailProp }) {
     const emailLimpio = loginEmailInput.trim().toLowerCase();
     const passLimpia = loginPasswordInput.trim();
 
-    // Verificamos si el correo ingresado está registrado en la lista de personal
-    const existeEnPersonal = personalEmpresa.find(p => p.email && p.email.trim().toLowerCase() === emailLimpio);
+    // Busca al usuario en la lista de personal registrado
+    const usuarioEncontrado = personalEmpresa.find(
+      (p) => p.email && p.email.trim().toLowerCase() === emailLimpio
+    );
 
-    // Permite loguearse a logistica@demo.com, chofer@demo.com o cualquier correo registrado en el plantel con la clave demo1234
+    // Valida credenciales
     if (
-      (emailLimpio === 'logistica@demo.com' || emailLimpio === 'chofer@demo.com' || existeEnPersonal) &&
+      (emailLimpio === 'logistica@demo.com' ||
+        emailLimpio === 'chofer@demo.com' ||
+        usuarioEncontrado) &&
       passLimpia === 'demo1234'
     ) {
       setUserEmail(emailLimpio);
+      
+      // Determina el rol
+      const esRolChofer =
+        emailLimpio === 'chofer@demo.com' ||
+        (usuarioEncontrado && usuarioEncontrado.rol?.toLowerCase() === 'chofer');
+
+      if (esRolChofer) {
+        setUserRole('chofer');
+      } else {
+        setUserRole('logistica');
+      }
+
       setIsLoggedIn(true);
       setLoginEmailInput('');
       setLoginPasswordInput('');
     } else {
-      setLoginError('Usuario o contraseña incorrectos. Ingresa con un correo registrado en el plantel y la clave demo1234.');
+      setLoginError(
+        'Usuario o contraseña incorrectos. Ingresa con un correo registrado en el plantel y la clave demo1234.'
+      );
     }
   };
 
   const cerrarSesion = () => {
     setIsLoggedIn(false);
     setUserEmail('');
+    setUserRole('');
   };
 
   const cargarDatosBD = async () => {
@@ -362,7 +382,7 @@ export default function Panel({ email: emailProp }) {
   }
 
   if (esChofer) {
-    const choferNombreReal = personalEmpresa.find(p => p.email.toLowerCase() === userEmail.toLowerCase())?.nombre || 'Juan Pérez';
+    const choferNombreReal = personalEmpresa.find(p => p.email && p.email.toLowerCase() === userEmail.toLowerCase())?.nombre || 'Juan Pérez';
     const misPedidos = pedidosPorChofer[choferNombreReal] || [];
     const miVehiculo = vehiculoPorChofer[choferNombreReal] || vehiculoSeleccionado;
 
