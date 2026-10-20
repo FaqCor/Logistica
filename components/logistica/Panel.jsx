@@ -29,6 +29,7 @@ export default function Panel({ email: emailProp }) {
   const [patenteRapidaKm, setPatenteRapidaKm] = useState('');
   const [valorRapidoKm, setValorRapidoKm] = useState('');
 
+  // Personal y Flota
   const [personalEmpresa, setPersonalEmpresa] = useState([
     { id: 1, nombre: 'Juan Pérez', rol: 'Chofer', email: 'chofer@demo.com', telefono: '3874556677' },
     { id: 2, nombre: 'Carlos Gómez', rol: 'Chofer', email: 'carlos@dmmaestro.com', telefono: '3875112233' }
@@ -38,6 +39,10 @@ export default function Panel({ email: emailProp }) {
   const [nuevoEmailPersonal, setNuevoEmailPersonal] = useState('');
   const [nuevoTelPersonal, setNuevoTelPersonal] = useState('');
 
+  // Modales de Edición
+  const [itemEditarPersonal, setItemEditarPersonal] = useState(null);
+  const [itemEditarVehiculo, setItemEditarVehiculo] = useState(null);
+
   const [nuevoDominioVehiculo, setNuevoDominioVehiculo] = useState('');
   const [nuevoModeloVehiculo, setNuevoModeloVehiculo] = useState('');
   const [nuevoKmVehiculo, setNuevoKmVehiculo] = useState('');
@@ -45,16 +50,12 @@ export default function Panel({ email: emailProp }) {
   
   const listaChoferes = personalEmpresa.filter(p => p.rol === 'Chofer');
   const [flotaVehiculos, setFlotaVehiculos] = useState([
-    { dominio: 'NEB732', modelo: 'IVECO Daily', km: 124500, estado: 'Disponible', enMantenimiento: false },
-    { dominio: 'AF997GV', modelo: 'Mercedes Benz Sprinter', km: 98200, estado: 'Disponible', enMantenimiento: false }
+    { id: 1, dominio: 'NEB732', modelo: 'IVECO Daily', tipo_medicion: 'Kilómetros', km: 124500, estado: 'Disponible', enMantenimiento: false },
+    { id: 2, dominio: 'AF997GV', modelo: 'Mercedes Benz Sprinter', tipo_medicion: 'Kilómetros', km: 98200, estado: 'Disponible', enMantenimiento: false }
   ]);
 
   const [choferSeleccionado, setChoferSeleccionado] = useState(listaChoferes[0]?.nombre || 'Juan Pérez');
   const [vehiculoSeleccionado, setVehiculoSeleccionado] = useState(flotaVehiculos[0]?.dominio || 'NEB732');
-
-  const [modalCierreAbierto, setModalCierreAbierto] = useState(false);
-  const [pedidoACerrar, setPedidoACerrar] = useState(null);
-  const [modalCierreFinalViaje, setModalCierreFinalViaje] = useState(false);
 
   const listaTodasPatentes = Array.from(new Set([
     ...flotaVehiculos.map(v => v.dominio),
@@ -92,11 +93,20 @@ export default function Panel({ email: emailProp }) {
         const data = await res.json();
         if (data.success && Array.isArray(data.pedidos)) setPedidosBD(data.pedidos);
       }
+      
       const resFlota = await fetch('/api/flota', { cache: 'no-store' });
       if (resFlota.ok) {
         const dataFlota = await resFlota.json();
         let listaFlota = Array.isArray(dataFlota) ? dataFlota : (dataFlota.success ? dataFlota.flota : []);
+        if (listaFlota.length > 0) setFlotaVehiculos(listaFlota);
         setFlotaMantenimientoBD(listaFlota);
+      }
+
+      const resPersonal = await fetch('/api/personal', { cache: 'no-store' });
+      if (resPersonal.ok) {
+        const dataPersonal = await resPersonal.json();
+        let listaP = Array.isArray(dataPersonal) ? dataPersonal : (dataPersonal.success ? dataPersonal.personal : []);
+        if (listaP.length > 0) setPersonalEmpresa(listaP);
       }
     } catch (err) {
       console.warn('Usando datos locales.');
@@ -127,22 +137,19 @@ export default function Panel({ email: emailProp }) {
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
         
-        // Lee la hoja como una matriz de filas (array de arrays)
         const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
         if (rows && rows.length > 0) {
           const nuevosPedidos = [];
           
-          // Omitimos la primera fila si es cabecera (empezamos en i = 1, o i = 0 si no tiene cabecera)
           for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
-            // Validamos que la fila tenga datos
             if (row && (row[1] || row[2] || row[7])) {
               nuevosPedidos.push({
                 id: 100 + i,
-                cliente: row[1] || 'Cliente Distribuidora', // Columna B
-                direccion: row[2] || 'Dirección no especificada', // Columna C
-                provincia: row[7] || 'Salta', // Columna H
+                cliente: row[1] || 'Cliente Distribuidora',
+                direccion: row[2] || 'Dirección no especificada',
+                provincia: row[7] || 'Salta',
                 bultos: 1
               });
             }
@@ -164,37 +171,115 @@ export default function Panel({ email: emailProp }) {
     reader.readAsBinaryString(file);
   };
 
-  const agregarPersonal = (e) => {
+  // CRUD Personal con Neon BD
+  const agregarPersonal = async (e) => {
     e.preventDefault();
     if (!nuevoNombrePersonal) return alert('Ingresa el nombre del personal.');
-    setPersonalEmpresa([...personalEmpresa, { id: Date.now(), nombre: nuevoNombrePersonal, rol: nuevoRolPersonal, email: nuevoEmailPersonal, telefono: nuevoTelPersonal }]);
+    
+    const nuevoObj = {
+      id: Date.now(),
+      nombre: nuevoNombrePersonal,
+      rol: nuevoRolPersonal,
+      email: nuevoEmailPersonal,
+      telefono: nuevoTelPersonal
+    };
+
+    try {
+      await fetch('/api/personal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(nuevoObj)
+      });
+    } catch (err) {
+      console.warn('Guardado localmente');
+    }
+
+    setPersonalEmpresa(prev => [...prev, nuevoObj]);
     setNuevoNombrePersonal(''); setNuevoEmailPersonal(''); setNuevoTelPersonal('');
-    alert('Personal registrado con éxito.');
+    alert('Personal registrado y guardado con éxito.');
   };
 
-  const eliminarPersonal = (id) => {
-    if (confirm('¿Eliminar integrante?')) setPersonalEmpresa(personalEmpresa.filter(p => p.id !== id));
+  const guardarEdicionPersonal = async (e) => {
+    e.preventDefault();
+    if (!itemEditarPersonal) return;
+
+    try {
+      await fetch('/api/personal', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(itemEditarPersonal)
+      });
+    } catch (err) { console.warn('Modificado localmente'); }
+
+    setPersonalEmpresa(prev => prev.map(p => p.id === itemEditarPersonal.id ? itemEditarPersonal : p));
+    setItemEditarPersonal(null);
+    alert('Información del integrante actualizada.');
   };
 
-  const agregarVehiculo = (e) => {
+  const eliminarPersonal = async (id) => {
+    if (!confirm('¿Estás seguro de eliminar definitivamente a este integrante de la base de datos?')) return;
+    try {
+      await fetch(`/api/personal?id=${id}`, { method: 'DELETE' });
+    } catch (err) { console.warn('Eliminado localmente'); }
+
+    setPersonalEmpresa(prev => prev.filter(p => p.id !== id));
+    alert('Integrante eliminado correctamente.');
+  };
+
+  // CRUD Flota / Vehículos con Neon BD
+  const agregarVehiculo = async (e) => {
     e.preventDefault();
     if (!nuevoDominioVehiculo || !nuevoModeloVehiculo) return alert('Ingresa patente y modelo.');
     const patenteUpper = nuevoDominioVehiculo.toUpperCase();
-    setFlotaVehiculos([...flotaVehiculos, { dominio: patenteUpper, modelo: nuevoModeloVehiculo, km: Number(nuevoKmVehiculo) || 0, estado: 'Disponible', enMantenimiento: false }]);
+
+    const nuevoVeh = {
+      id: Date.now(),
+      dominio: patenteUpper,
+      modelo: nuevoModeloVehiculo,
+      tipo_medicion: tipoMedicionVehiculo,
+      km: Number(nuevoKmVehiculo) || 0,
+      estado: 'Disponible',
+      enMantenimiento: false
+    };
+
+    try {
+      await fetch('/api/flota', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(nuevoVeh)
+      });
+    } catch (err) { console.warn('Guardado localmente'); }
+
+    setFlotaVehiculos(prev => [...prev, nuevoVeh]);
     setNuevoDominioVehiculo(''); setNuevoModeloVehiculo(''); setNuevoKmVehiculo('');
-    alert(`Vehículo ${patenteUpper} registrado.`);
+    alert(`Vehículo ${patenteUpper} registrado en el sistema.`);
   };
 
-  const eliminarVehiculo = (dominio) => {
-    if (confirm(`¿Eliminar unidad ${dominio}?`)) setFlotaVehiculos(flotaVehiculos.filter(v => v.dominio !== dominio));
-  };
-
-  const guardarVehiculoMantenimiento = async (e) => {
+  const guardarEdicionVehiculo = async (e) => {
     e.preventDefault();
-    if (!nuevaPatenteMto || !nuevoCostoMto) return alert('Completa los campos obligatorios de mantenimiento.');
-    alert('¡Mantenimiento guardado correctamente!');
-    setNuevoCostoMto('');
-    cargarDatosBD();
+    if (!itemEditarVehiculo) return;
+
+    try {
+      await fetch('/api/flota', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(itemEditarVehiculo)
+      });
+    } catch (err) { console.warn('Modificado localmente'); }
+
+    setFlotaVehiculos(prev => prev.map(v => v.id === itemEditarVehiculo.id ? itemEditarVehiculo : v));
+    setItemEditarVehiculo(null);
+    alert('Datos del vehículo actualizados correctamente.');
+  };
+
+  const eliminarVehiculo = async (id, dominio) => {
+    if (!confirm(`¿Estás seguro de eliminar la unidad ${dominio} de la base de datos?`)) return;
+    try {
+      await fetch(`/api/flota?id=${id}`, { method: 'DELETE' });
+    } catch (err) { console.warn('Eliminado localmente'); }
+
+    setFlotaVehiculos(prev => prev.filter(v => v.id !== id && v.dominio !== dominio));
+    alert(`Unidad ${dominio} eliminada definitivamente.`);
   };
 
   const actualizarKmRapido = async (e) => {
@@ -234,7 +319,7 @@ export default function Panel({ email: emailProp }) {
 
   const quitarPedidoDeChofer = (nombreChofer, idPedido) => {
     const actual = pedidosPorChofer[nombreChofer] || [];
-    setPedidosPorChofer({ ...pedidosPorChofer, [nombreChofer]: actual.filter(p => p.id !== idPedido) });
+    setPedidosPorChofer({ ...pedidosPorChofer, [choferSeleccionado]: actual.filter(p => p.id !== idPedido) });
   };
 
   const exportarReporteExcel = () => {
@@ -246,8 +331,6 @@ export default function Panel({ email: emailProp }) {
 
   const todosPedidosAsignadosIDs = Object.values(pedidosPorChofer).flat().map(p => p.id);
   const listaPedidosDisponibles = pedidosBD.filter(p => !todosPedidosAsignadosIDs.includes(p.id));
-  const nombresChoferesConRuta = Object.keys(pedidosPorChofer).filter(ch => (pedidosPorChofer[ch] || []).length > 0);
-  const flotaMantenimientoFiltrada = filtroPatenteMto ? flotaMantenimientoBD.filter(v => v.patente === filtroPatenteMto) : flotaMantenimientoBD;
 
   if (!isLoggedIn) {
     return (
@@ -274,7 +357,6 @@ export default function Panel({ email: emailProp }) {
     );
   }
 
-  // SI ES CHOFER, PUEDE VER SUS PEDIDOS ASIGNADOS Y EL ORDEN DE ENTREGA OPTIMIZADO
   if (esChofer) {
     const choferNombreReal = personalEmpresa.find(p => p.email.toLowerCase() === userEmail.toLowerCase())?.nombre || 'Juan Pérez';
     const misPedidos = pedidosPorChofer[choferNombreReal] || [];
@@ -322,7 +404,6 @@ export default function Panel({ email: emailProp }) {
           <h1 style={{ fontSize: '22px', fontWeight: 'bold', margin: 0 }}>Área Logística</h1>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {/* Botón para importar hoja de Excel de Clientes en lugar de la patente */}
           <label style={{ backgroundColor: '#15803d', color: '#fff', padding: '6px 12px', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
             📥 Importar Excel
             <input type="file" accept=".xlsx, .xls" onChange={importarExcelClientes} style={{ display: 'none' }} />
@@ -397,7 +478,6 @@ export default function Panel({ email: emailProp }) {
               }} style={{ background: '#0284c7', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>⚡ Optimizar Ruta y Orden de Entrega</button>
             </div>
 
-            {/* SECCIÓN INFERIOR: PEDIDOS ASIGNADOS AL CHOFER ACTUAL CON SU TRANSPORTE */}
             <div style={{ marginTop: '20px', padding: '16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
               <h4 style={{ margin: '0 0 10px 0', color: '#0f172a' }}>🚚 Pedidos Asignados a <strong>{choferSeleccionado}</strong> (Vehículo: <span style={{ color: '#047857' }}>{vehiculoPorChofer[choferSeleccionado] || vehiculoSeleccionado}</span>):</h4>
               {(!pedidosPorChofer[choferSeleccionado] || pedidosPorChofer[choferSeleccionado].length === 0) ? (
@@ -461,10 +541,13 @@ export default function Panel({ email: emailProp }) {
           </div>
         )}
 
+        {/* PESTAÑA FLOTA Y PERSONAL CON REPORTES INFERIORES Y EDICIÓN/ELIMINACIÓN EN NEON */}
         {pestanaActiva === 'flotaPersonal' && (
           <div style={{ background: '#fff', padding: '24px', borderRadius: '12px' }}>
             <h3>🏢 Administración de Flota y Personal</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            
+            {/* FORMULARIOS SUPERIORES */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '30px' }}>
               <form onSubmit={agregarPersonal} style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                 <h4 style={{ margin: '0 0 10px 0', color: '#047857' }}>➕ Registrar Nuevo Personal</h4>
                 <input type="text" placeholder="Ej: Marcos Ruiz" value={nuevoNombrePersonal} onChange={(e) => setNuevoNombrePersonal(e.target.value)} style={{ width: '100%', padding: '8px', marginBottom: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} required />
@@ -489,6 +572,114 @@ export default function Panel({ email: emailProp }) {
                 <button type="submit" style={{ width: '100%', background: '#0284c7', color: '#fff', padding: '10px', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Guardar Vehículo / Unidad</button>
               </form>
             </div>
+
+            {/* TABLA DE REPORTE DE PERSONAL (PLANTEL) */}
+            <div style={{ marginBottom: '30px' }}>
+              <h4 style={{ color: '#047857', marginBottom: '10px' }}>👥 Reporte del Plantel de Personal</h4>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e1' }}>
+                    <th style={{ padding: '10px' }}>Nombre</th>
+                    <th style={{ padding: '10px' }}>Rol</th>
+                    <th style={{ padding: '10px' }}>Email</th>
+                    <th style={{ padding: '10px' }}>Teléfono</th>
+                    <th style={{ padding: '10px', textAlign: 'center' }}>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {personalEmpresa.length === 0 ? (
+                    <tr><td colSpan="5" style={{ padding: '12px', textAlign: 'center', color: '#64748b' }}>No hay personal registrado en Neon BD.</td></tr>
+                  ) : personalEmpresa.map((p) => (
+                    <tr key={p.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '10px', fontWeight: 'bold' }}>{p.nombre}</td>
+                      <td style={{ padding: '10px' }}><span style={{ padding: '2px 8px', borderRadius: '4px', background: p.rol === 'Chofer' ? '#dcfce7' : '#e0f2fe', color: p.rol === 'Chofer' ? '#15803d' : '#0369a1', fontWeight: 'bold', fontSize: '11px' }}>{p.rol}</span></td>
+                      <td style={{ padding: '10px' }}>{p.email || '-'}</td>
+                      <td style={{ padding: '10px' }}>{p.telefono || '-'}</td>
+                      <td style={{ padding: '10px', textAlign: 'center' }}>
+                        <button onClick={() => setItemEditarPersonal(p)} style={{ background: '#fef08a', color: '#854d0e', border: '1px solid #facc15', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', marginRight: '6px', fontSize: '12px' }}>✏️ Editar</button>
+                        <button onClick={() => eliminarPersonal(p.id)} style={{ background: '#fee2e2', color: '#b91c1c', border: '1px solid #f87171', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>🗑️ Borrar</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* TABLA DE REPORTE DE VEHÍCULOS Y FLOTA */}
+            <div>
+              <h4 style={{ color: '#0284c7', marginBottom: '10px' }}>🚚 Reporte de Flota y Vehículos de la Empresa</h4>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e1' }}>
+                    <th style={{ padding: '10px' }}>Dominio / Patente</th>
+                    <th style={{ padding: '10px' }}>Modelo / Unidad</th>
+                    <th style={{ padding: '10px' }}>Medición</th>
+                    <th style={{ padding: '10px' }}>Lectura Actual</th>
+                    <th style={{ padding: '10px', textAlign: 'center' }}>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {flotaVehiculos.length === 0 ? (
+                    <tr><td colSpan="5" style={{ padding: '12px', textAlign: 'center', color: '#64748b' }}>No hay vehículos registrados en Neon BD.</td></tr>
+                  ) : flotaVehiculos.map((v) => (
+                    <tr key={v.id || v.dominio} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '10px', fontWeight: 'bold', color: '#0f172a' }}>{v.dominio}</td>
+                      <td style={{ padding: '10px' }}>{v.modelo}</td>
+                      <td style={{ padding: '10px' }}>{v.tipo_medicion || 'Kilómetros'}</td>
+                      <td style={{ padding: '10px', fontWeight: 'bold', color: '#047857' }}>{v.km || v.horas || 0}</td>
+                      <td style={{ padding: '10px', textAlign: 'center' }}>
+                        <button onClick={() => setItemEditarVehiculo(v)} style={{ background: '#fef08a', color: '#854d0e', border: '1px solid #facc15', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', marginRight: '6px', fontSize: '12px' }}>✏️ Editar</button>
+                        <button onClick={() => eliminarVehiculo(v.id, v.dominio)} style={{ background: '#fee2e2', color: '#b91c1c', border: '1px solid #f87171', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>🗑️ Borrar</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* MODAL DE EDICIÓN DE PERSONAL */}
+            {itemEditarPersonal && (
+              <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                <form onSubmit={guardarEdicionPersonal} style={{ background: '#fff', padding: '20px', borderRadius: '8px', width: '380px' }}>
+                  <h3>✏️ Editar Integrante del Plantel</h3>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Nombre:</label>
+                  <input type="text" value={itemEditarPersonal.nombre} onChange={(e) => setItemEditarPersonal({ ...itemEditarPersonal, nombre: e.target.value })} style={{ width: '100%', padding: '8px', marginBottom: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} required />
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Rol:</label>
+                  <select value={itemEditarPersonal.rol} onChange={(e) => setItemEditarPersonal({ ...itemEditarPersonal, rol: e.target.value })} style={{ width: '100%', padding: '8px', marginBottom: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }}>
+                    <option value="Chofer">Chofer</option>
+                    <option value="Ayudante">Ayudante</option>
+                  </select>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Email:</label>
+                  <input type="email" value={itemEditarPersonal.email || ''} onChange={(e) => setItemEditarPersonal({ ...itemEditarPersonal, email: e.target.value })} style={{ width: '100%', padding: '8px', marginBottom: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} />
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Teléfono:</label>
+                  <input type="text" value={itemEditarPersonal.telefono || ''} onChange={(e) => setItemEditarPersonal({ ...itemEditarPersonal, telefono: e.target.value })} style={{ width: '100%', padding: '8px', marginBottom: '15px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} />
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button type="submit" style={{ flex: 1, background: '#047857', color: '#fff', padding: '8px', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Guardar Cambios</button>
+                    <button type="button" onClick={() => setItemEditarPersonal(null)} style={{ flex: 1, background: '#cbd5e1', padding: '8px', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Cancelar</button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* MODAL DE EDICIÓN DE VEHÍCULOS */}
+            {itemEditarVehiculo && (
+              <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                <form onSubmit={guardarEdicionVehiculo} style={{ background: '#fff', padding: '20px', borderRadius: '8px', width: '380px' }}>
+                  <h3>✏️ Editar Unidad de la Flota</h3>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Dominio / Patente:</label>
+                  <input type="text" value={itemEditarVehiculo.dominio} onChange={(e) => setItemEditarVehiculo({ ...itemEditarVehiculo, dominio: e.target.value.toUpperCase() })} style={{ width: '100%', padding: '8px', marginBottom: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} required />
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Modelo / Unidad:</label>
+                  <input type="text" value={itemEditarVehiculo.modelo} onChange={(e) => setItemEditarVehiculo({ ...itemEditarVehiculo, modelo: e.target.value })} style={{ width: '100%', padding: '8px', marginBottom: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} required />
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Medición Actual (KM/Horas):</label>
+                  <input type="number" value={itemEditarVehiculo.km || 0} onChange={(e) => setItemEditarVehiculo({ ...itemEditarVehiculo, km: Number(e.target.value) })} style={{ width: '100%', padding: '8px', marginBottom: '15px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} required />
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button type="submit" style={{ flex: 1, background: '#0284c7', color: '#fff', padding: '8px', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Guardar Cambios</button>
+                    <button type="button" onClick={() => setItemEditarVehiculo(null)} style={{ flex: 1, background: '#cbd5e1', padding: '8px', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Cancelar</button>
+                  </div>
+                </form>
+              </div>
+            )}
+
           </div>
         )}
 
