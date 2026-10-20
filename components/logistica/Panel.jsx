@@ -276,11 +276,16 @@ export default function Panel({ email: emailProp }) {
             </div>
             <h4>☑️ Seleccionar envíos pendientes para asignar a {choferSeleccionado}:</h4>
             {listaPedidosDisponibles.length === 0 ? <p style={{ color: '#64748b' }}>No hay pedidos pendientes disponibles.</p> : (
-              <div style={{ maxHeight: '160px', overflowY: 'auto', border: '1px solid #e2e8f0', padding: '8px', borderRadius: '6px', marginBottom: '12px' }}>
+              <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid #e2e8f0', padding: '8px', borderRadius: '6px', marginBottom: '12px', background: '#fff' }}>
                 {listaPedidosDisponibles.map(p => (
-                  <label key={p.id} style={{ display: 'flex', gap: '8px', fontSize: '13px', cursor: 'pointer', marginBottom: '6px' }}>
-                    <input type="checkbox" checked={pedidosSeleccionadosCheckbox.includes(p.id)} onChange={() => setPedidosSeleccionadosCheckbox(prev => prev.includes(p.id) ? prev.filter(i => i !== p.id) : [...prev, p.id])} />
-                    <span>#{p.id} - ({p.provincia || 'Salta'}) | 📍 {p.direccion || p.Direccion} (Bultos: {p.bultos || 1})</span>
+                  <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', cursor: 'pointer', marginBottom: '8px', padding: '6px', borderBottom: '1px solid #f1f5f9' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={pedidosSeleccionadosCheckbox.includes(p.id)} 
+                      onChange={() => setPedidosSeleccionadosCheckbox(prev => prev.includes(p.id) ? prev.filter(i => i !== p.id) : [...prev, p.id])} 
+                      style={{ width: '16px', height: '16px', accentColor: '#047857', cursor: 'pointer', margin: 0, flexShrink: 0 }} 
+                    />
+                    <span style={{ lineHeight: '1.4' }}>#{p.id} - ({p.provincia || 'Salta'}) | 📍 {p.direccion || p.Direccion} (Bultos: {p.bultos || 1})</span>
                   </label>
                 ))}
               </div>
