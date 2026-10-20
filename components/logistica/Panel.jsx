@@ -234,7 +234,7 @@ export default function Panel({ email: emailProp }) {
 
   const quitarPedidoDeChofer = (nombreChofer, idPedido) => {
     const actual = pedidosPorChofer[nombreChofer] || [];
-    setPedidosPorChofer({ ...pedidosPorChofer, [choferSeleccionado]: actual.filter(p => p.id !== idPedido) });
+    setPedidosPorChofer({ ...pedidosPorChofer, [nombreChofer]: actual.filter(p => p.id !== idPedido) });
   };
 
   const exportarReporteExcel = () => {
@@ -269,6 +269,46 @@ export default function Panel({ email: emailProp }) {
             </div>
             <button type="submit" style={{ width: '100%', padding: '12px', backgroundColor: '#064e3b', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer' }}>Ingresar</button>
           </form>
+        </div>
+      </div>
+    );
+  }
+
+  // SI ES CHOFER, PUEDE VER SUS PEDIDOS ASIGNADOS Y EL ORDEN DE ENTREGA OPTIMIZADO
+  if (esChofer) {
+    const choferNombreReal = personalEmpresa.find(p => p.email.toLowerCase() === userEmail.toLowerCase())?.nombre || 'Juan Pérez';
+    const misPedidos = pedidosPorChofer[choferNombreReal] || [];
+    const miVehiculo = vehiculoPorChofer[choferNombreReal] || vehiculoSeleccionado;
+
+    return (
+      <div style={{ backgroundColor: '#f1f5f9', minHeight: '100vh', fontFamily: 'sans-serif' }}>
+        <div style={{ backgroundColor: '#064e3b', color: '#fff', padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div><span style={{ fontSize: '13px', color: '#a7f3d0', fontWeight: '500' }}>{fechaFormateada}</span></div>
+          <h1 style={{ fontSize: '20px', fontWeight: 'bold', margin: 0 }}>Portal del Chofer</h1>
+          <button onClick={cerrarSesion} style={{ background: 'transparent', color: '#fff', border: '1px solid #fff', borderRadius: '6px', padding: '6px 14px', cursor: 'pointer', fontWeight: 'bold' }}>Salir</button>
+        </div>
+
+        <div style={{ padding: '24px', maxWidth: '800px', margin: '0 auto' }}>
+          <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+            <h2 style={{ color: '#064e3b', marginTop: 0 }}>¡Bienvenido, {choferNombreReal}!</h2>
+            <p style={{ color: '#64748b' }}>Vehículo asignado: <strong style={{ color: '#047857' }}>{miVehiculo}</strong></p>
+            
+            <h3 style={{ marginTop: '20px', borderBottom: '2px solid #e2e8f0', paddingBottom: '8px' }}>🗺️ Orden de Entrega Optimizado para tu Ruta:</h3>
+            {misPedidos.length === 0 ? (
+              <p style={{ color: '#64748b', fontStyle: 'italic' }}>No tienes pedidos asignados en este momento. Consulta con el área de logística.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '15px' }}>
+                {misPedidos.map((ped, index) => (
+                  <div key={ped.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                    <div>
+                      <span style={{ background: '#047857', color: '#fff', padding: '3px 8px', borderRadius: '4px', fontWeight: 'bold', fontSize: '12px', marginRight: '10px' }}>Parada #{index + 1}</span>
+                      <strong>{ped.cliente || 'Cliente'}</strong> | 📍 {ped.direccion || 'Dirección'} | Provincia: {ped.provincia || 'Salta'} (Bultos: {ped.bultos || 1})
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -344,7 +384,43 @@ export default function Panel({ email: emailProp }) {
                 ))}
               </div>
             )}
-            <button onClick={agregarPedidosSeleccionadosARuta} style={{ background: '#047857', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>➕ Añadir Ruta con los pedidos seleccionados</button>
+            
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
+              <button onClick={agregarPedidosSeleccionadosARuta} style={{ background: '#047857', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>➕ Añadir Ruta con los pedidos seleccionados</button>
+              
+              <button onClick={() => {
+                const actuales = pedidosPorChofer[choferSeleccionado] || [];
+                if (actuales.length === 0) return alert('No hay pedidos asignados a este chofer para optimizar.');
+                const optimizados = [...actuales].sort((a, b) => a.id - b.id);
+                setPedidosPorChofer({ ...pedidosPorChofer, [choferSeleccionado]: optimizados });
+                alert(`🚀 Ruta optimizada para ${choferSeleccionado} con el transporte ${vehiculoPorChofer[choferSeleccionado] || vehiculoSeleccionado}. El chofer verá el orden de entrega al iniciar sesión.`);
+              }} style={{ background: '#0284c7', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>⚡ Optimizar Ruta y Orden de Entrega</button>
+            </div>
+
+            {/* SECCIÓN INFERIOR: PEDIDOS ASIGNADOS AL CHOFER ACTUAL CON SU TRANSPORTE */}
+            <div style={{ marginTop: '20px', padding: '16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#0f172a' }}>🚚 Pedidos Asignados a <strong>{choferSeleccionado}</strong> (Vehículo: <span style={{ color: '#047857' }}>{vehiculoPorChofer[choferSeleccionado] || vehiculoSeleccionado}</span>):</h4>
+              {(!pedidosPorChofer[choferSeleccionado] || pedidosPorChofer[choferSeleccionado].length === 0) ? (
+                <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>Aún no se han añadido pedidos a la ruta de este chofer.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {pedidosPorChofer[choferSeleccionado].map((ped, idx) => (
+                    <div key={ped.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', padding: '8px 12px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '13px' }}>
+                      <div>
+                        <strong>#{idx + 1} - Pedido #{ped.id}</strong> | {ped.cliente || 'Cliente'} | 📍 {ped.direccion || 'Dirección'} (Bultos: {ped.bultos || 1})
+                      </div>
+                      <button 
+                        onClick={() => quitarPedidoDeChofer(choferSeleccionado, ped.id)} 
+                        style={{ background: '#fee2e2', color: '#b91c1c', border: '1px solid #f87171', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
+                      >
+                        ❌ Quitar de la ruta
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
           </div>
         )}
 
