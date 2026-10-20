@@ -114,6 +114,40 @@ export default function Panel({ email: emailProp }) {
     }
   }, [patenteRapidaKm]);
 
+  // Función para importar Excel de Clientes y reemplazar los envíos pendientes
+  const importarExcelClientes = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target.result;
+        const workbook = XLSX.read(bstr, { type: 'binary' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const data = XLSX.utils.sheet_to_json(worksheet);
+
+        if (data && data.length > 0) {
+          const nuevosPedidos = data.map((row, index) => ({
+            id: row.id || row.N_Pedido || row['N° Pedido'] || (100 + index),
+            cliente: row.cliente || row.Cliente || 'Cliente Distribuidora',
+            provincia: row.provincia || row.Provincia || 'Salta',
+            direccion: row.direccion || row.Direccion || row.Dirección || 'Dirección no especificada',
+            bultos: Number(row.bultos || row.Bultos || 1)
+          }));
+          setPedidosBD(nuevosPedidos);
+          alert(`¡Se importaron ${nuevosPedidos.length} clientes/pedidos correctamente desde el Excel!`);
+        } else {
+          alert('El archivo Excel está vacío o no tiene el formato esperado.');
+        }
+      } catch (error) {
+        alert('Error al procesar el archivo Excel.');
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
   const agregarPersonal = (e) => {
     e.preventDefault();
     if (!nuevoNombrePersonal) return alert('Ingresa el nombre del personal.');
@@ -184,7 +218,7 @@ export default function Panel({ email: emailProp }) {
 
   const quitarPedidoDeChofer = (nombreChofer, idPedido) => {
     const actual = pedidosPorChofer[nombreChofer] || [];
-    setPedidosPorChofer({ ...pedidosPorChofer, [nombreChofer]: actual.filter(p => p.id !== idPedido) });
+    setPedidosPorChofer({ ...pedidosPorChofer, [choferSeleccionado]: actual.filter(p => p.id !== idPedido) });
   };
 
   const exportarReporteExcel = () => {
@@ -232,7 +266,11 @@ export default function Panel({ email: emailProp }) {
           <h1 style={{ fontSize: '22px', fontWeight: 'bold', margin: 0 }}>Área Logística</h1>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{ color: '#0f172a', fontWeight: '900', fontSize: '15px', padding: '2px 10px', background: '#fff', borderRadius: '4px' }}>{vehiculoSeleccionado}</span>
+          {/* Botón para importar hoja de Excel de Clientes en lugar de la patente */}
+          <label style={{ backgroundColor: '#15803d', color: '#fff', padding: '6px 12px', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            📥 Importar Excel
+            <input type="file" accept=".xlsx, .xls" onChange={importarExcelClientes} style={{ display: 'none' }} />
+          </label>
           <button onClick={cerrarSesion} style={{ background: 'transparent', color: '#fff', border: '1px solid #fff', borderRadius: '6px', padding: '6px 14px', cursor: 'pointer', fontWeight: 'bold' }}>Salir</button>
         </div>
       </div>
@@ -246,7 +284,7 @@ export default function Panel({ email: emailProp }) {
 
           {!esChofer && (
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <button onClick={() => setPestanaActiva('gestion')} style={{ backgroundColor: pestanaActiva === 'gestion' ? '#1e293b' : '#334155', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>🗺️ Rutas</button>
+              <button onClick={() => setPestanaActiva('gestion')} style={{ backgroundColor: pestanaActiva === 'gestion' ? '#1e293b' : '#334155', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>📋 Asignación</button>
               <button onClick={() => setPestanaActiva('reportes')} style={{ backgroundColor: pestanaActiva === 'reportes' ? '#1e293b' : '#334155', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>📊 Reportes</button>
               <button onClick={() => setPestanaActiva('flotaPersonal')} style={{ backgroundColor: pestanaActiva === 'flotaPersonal' ? '#1e293b' : '#334155', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>🚚 Flota y Personal</button>
               <button onClick={() => setPestanaActiva('mantenimientoFlota')} style={{ backgroundColor: pestanaActiva === 'mantenimientoFlota' ? '#1e293b' : '#b45309', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>🛠️ Mantenimiento</button>
@@ -259,7 +297,7 @@ export default function Panel({ email: emailProp }) {
 
         {pestanaActiva === 'gestion' && (
           <div style={{ background: '#fff', padding: '24px', borderRadius: '12px' }}>
-            <h3>🗺️ Gestión de Rutas</h3>
+            <h3>📋 Asignación de Pedidos y Rutas</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', margin: '15px 0' }}>
               <div>
                 <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Seleccionar Chofer:</label>
@@ -275,7 +313,7 @@ export default function Panel({ email: emailProp }) {
               </div>
             </div>
             <h4>☑️ Seleccionar envíos pendientes para asignar a {choferSeleccionado}:</h4>
-            {listaPedidosDisponibles.length === 0 ? <p style={{ color: '#64748b' }}>No hay pedidos pendientes disponibles.</p> : (
+            {listaPedidosDisponibles.length === 0 ? <p style={{ color: '#64748b' }}>No hay pedidos pendientes disponibles. Importa una hoja de Excel para cargar los clientes.</p> : (
               <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid #e2e8f0', padding: '8px', borderRadius: '6px', marginBottom: '12px', background: '#fff' }}>
                 {listaPedidosDisponibles.map(p => (
                   <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', cursor: 'pointer', marginBottom: '8px', padding: '6px', borderBottom: '1px solid #f1f5f9' }}>
@@ -285,7 +323,7 @@ export default function Panel({ email: emailProp }) {
                       onChange={() => setPedidosSeleccionadosCheckbox(prev => prev.includes(p.id) ? prev.filter(i => i !== p.id) : [...prev, p.id])} 
                       style={{ width: '16px', height: '16px', accentColor: '#047857', cursor: 'pointer', margin: 0, flexShrink: 0 }} 
                     />
-                    <span style={{ lineHeight: '1.4' }}>#{p.id} - ({p.provincia || 'Salta'}) | 📍 {p.direccion || p.Direccion} (Bultos: {p.bultos || 1})</span>
+                    <span style={{ lineHeight: '1.4' }}>#{p.id} - ({p.cliente || 'Cliente'}) - ({p.provincia || 'Salta'}) | 📍 {p.direccion || p.Direccion} (Bultos: {p.bultos || 1})</span>
                   </label>
                 ))}
               </div>
