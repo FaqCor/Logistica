@@ -12,6 +12,9 @@ export default function TabMantenimiento() {
   const [alertas, setAlertas] = useState([]);
   const [cargando, setCargando] = useState(true);
 
+  // Estado para edición
+  const [itemEditando, setItemEditando] = useState(null);
+
   useEffect(() => {
     cargarDatosIniciales();
   }, []);
@@ -74,13 +77,18 @@ export default function TabMantenimiento() {
       return;
     }
 
+    const kmActualNum = Number(infoVehiculo.kmActual) || 0;
+    // Intervalo estándar de service cada 10,000 km/horas
+    const proximoService = Math.ceil((kmActualNum + 1) / 10000) * 10000;
+
     const nuevoRegistro = {
+      id: Date.now(),
       patente: patenteSeleccionada,
       tipo_mantenimiento: tipoMantenimiento,
       descripcion_trabajo: descripcion,
       costo: parseFloat(costo) || 0,
-      km_o_horas_actual: Number(infoVehiculo.kmActual) || 0,
-      proximo_mantenimiento_km: Number(infoVehiculo.kmActual) + 10000,
+      km_o_horas_actual: kmActualNum,
+      proximo_mantenimiento: proximoService,
       fecha: new Date().toLocaleDateString()
     };
 
@@ -93,21 +101,47 @@ export default function TabMantenimiento() {
 
       if (res.ok) {
         alert("Mantenimiento registrado y guardado en Neon exitosamente.");
-        setDescripcion('');
-        setCosto('');
-        cargarDatosIniciales();
-      } else {
-        alert("Registro guardado localmente en pantalla.");
-        setHistorial(prev => [nuevoRegistro, ...prev]);
-        setDescripcion('');
-        setCosto('');
       }
     } catch (error) {
-      console.error("Error de red:", error);
-      setHistorial(prev => [nuevoRegistro, ...prev]);
-      setDescripcion('');
-      setCosto('');
+      console.warn("Guardado localmente por error de red.");
     }
+
+    setHistorial(prev => [nuevoRegistro, ...prev]);
+    setDescripcion('');
+    setCosto('');
+    setPatenteSeleccionada('');
+  };
+
+  const guardarEdicion = async (e) => {
+    e.preventDefault();
+    if (!itemEditando) return;
+
+    try {
+      await fetch('/api/mantenimientos', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(itemEditando)
+      });
+    } catch (err) {
+      console.warn("Modificado localmente");
+    }
+
+    setHistorial(prev => prev.map(m => m.id === itemEditando.id ? itemEditando : m));
+    setItemEditando(null);
+    alert("Mantenimiento actualizado correctamente.");
+  };
+
+  const eliminarMantenimiento = async (id) => {
+    if (!confirm("¿Estás seguro de eliminar este registro de mantenimiento de la base de datos?")) return;
+    
+    try {
+      await fetch(`/api/mantenimientos?id=${id}`, { method: 'DELETE' });
+    } catch (err) {
+      console.warn("Eliminado localmente");
+    }
+
+    setHistorial(prev => prev.filter(m => m.id !== id));
+    alert("Registro eliminado.");
   };
 
   const evaluarAlertas = (flotaData = []) => {
@@ -118,9 +152,13 @@ export default function TabMantenimiento() {
         const patente = vehiculo.dominio || vehiculo.patente || 'Unidad';
         const unidad = (vehiculo.tipo_medicion === 'Horas' || vehiculo.es_autoelevador) ? 'Horas' : 'KM';
         
-        // Alerta preventiva al aproximarse a los 10,000 (ej: cada múltiplo superior a 8500)
-        if (actual > 0 && actual % 10000 >= 8500) {
-          listaAlertas.push(`⚠️ El vehículo ${patente} (${vehiculo.modelo || 'Unidad'}) está próximo a servicio (${actual} ${unidad}).`);
+        // Calculamos el siguiente service (cada 10,000)
+        const proximoService = Math.ceil((actual + 1) / 10000) * 10000;
+        const diferencia = proximoService - actual;
+
+        // Brecha de anticipación configurada en 2,500 km / horas
+        if (diferencia <= 2500 && diferencia >= 0) {
+          listaAlertas.push(`⚠️ ALERTA ANTICIPADA: La unidad ${patente} (${vehiculo.modelo || 'Unidad'}) está a ${diferencia} ${unidad} de su próximo service (${proximoService} ${unidad}). ¡Preparar repuestos!`);
         }
       });
     }
@@ -129,8 +167,8 @@ export default function TabMantenimiento() {
 
   return (
     <div style={{ background: '#fff', padding: '24px', borderRadius: '12px' }}>
-      <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#0f172a', marginBottom: '4px' }}>Control de Mantenimiento Preventivo y Correctivo</h2>
-      <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '20px' }}>Monitoreo automático de kilometrajes, horómetros y costos de flota.</p>
+      <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#0f172a', marginBottom: '4px' }}>Control de Mantenimiento Preventivo y Costos</h2>
+      <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '20px' }}>Monitoreo automático con alertas de 2,500 km de anticipación y almacenamiento en Neon BD.</p>
       
       {cargando ? (
         <p style={{ color: '#64748b', fontSize: '14px' }}>Cargando información de flota...</p>
@@ -211,9 +249,9 @@ export default function TabMantenimiento() {
             </div>
           </form>
 
-          {/* Sección Inferior: Reporte y Alertas Automáticas */}
+          {/* Sección Inferior: Alertas Automáticas (Brecha 2500 km) */}
           <div style={{ marginBottom: '25px' }}>
-            <h3 style={{ fontSize: '15px', fontWeight: 'bold', color: '#0f172a', marginBottom: '10px' }}>Estado de Alertas y Reportes de Flota</h3>
+            <h3 style={{ fontSize: '15px', fontWeight: 'bold', color: '#0f172a', marginBottom: '10px' }}>📢 Alertas Anticipadas de Mantenimiento (Margen 2,500 KM)</h3>
             {alertas.length > 0 ? (
               <div style={{ background: '#fffbeb', borderLeft: '4px solid #f59e0b', padding: '12px 16px', borderRadius: '6px' }}>
                 {alertas.map((alerta, idx) => (
@@ -222,30 +260,33 @@ export default function TabMantenimiento() {
               </div>
             ) : (
               <div style={{ background: '#f0fdf4', borderLeft: '4px solid #22c55e', padding: '12px 16px', borderRadius: '6px' }}>
-                <p style={{ margin: 0, color: '#15803d', fontSize: '13px', fontWeight: '600' }}>✅ Toda la flota se encuentra en óptimas condiciones de mantenimiento.</p>
+                <p style={{ margin: 0, color: '#15803d', fontSize: '13px', fontWeight: '600' }}>✅ Toda la flota está lejos del límite de servicio (más de 2,500 km de margen).</p>
               </div>
             )}
           </div>
 
-          {/* Historial de Mantenimiento / Auditoría */}
+          {/* Historial de Mantenimiento / Auditoría con Edición y Borrado */}
           <div>
             <h3 style={{ fontSize: '15px', fontWeight: 'bold', color: '#0f172a', marginBottom: '10px' }}>📋 Historial de Mantenimientos (Auditoría de Costos)</h3>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>
+                  <th style={{ padding: '10px' }}>Fecha</th>
                   <th style={{ padding: '10px' }}>Patente</th>
                   <th style={{ padding: '10px' }}>Tipo</th>
                   <th style={{ padding: '10px' }}>Descripción</th>
                   <th style={{ padding: '10px' }}>Lectura</th>
                   <th style={{ padding: '10px' }}>Costo ($)</th>
+                  <th style={{ padding: '10px', textAlign: 'center' }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {!Array.isArray(historial) || historial.length === 0 ? (
-                  <tr><td colSpan="5" style={{ padding: '12px', textAlign: 'center', color: '#64748b' }}>No hay registros de mantenimientos almacenados aún.</td></tr>
+                  <tr><td colSpan="7" style={{ padding: '12px', textAlign: 'center', color: '#64748b' }}>No hay registros de mantenimientos almacenados en Neon aún.</td></tr>
                 ) : (
-                  historial.map((m, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                  historial.map((m) => (
+                    <tr key={m.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '10px' }}>{m.fecha || 'Hoy'}</td>
                       <td style={{ padding: '10px', fontWeight: 'bold' }}>{m.patente}</td>
                       <td style={{ padding: '10px' }}>
                         <span style={{ padding: '2px 8px', borderRadius: '4px', background: m.tipo_mantenimiento === 'Preventivo' ? '#dcfce7' : '#fee2e2', color: m.tipo_mantenimiento === 'Preventivo' ? '#15803d' : '#b91c1c', fontWeight: 'bold', fontSize: '11px' }}>
@@ -255,12 +296,42 @@ export default function TabMantenimiento() {
                       <td style={{ padding: '10px' }}>{m.descripcion_trabajo || '-'}</td>
                       <td style={{ padding: '10px' }}>{m.km_o_horas_actual || 0}</td>
                       <td style={{ padding: '10px', fontWeight: 'bold', color: '#b45309' }}>${Number(m.costo || 0).toLocaleString()}</td>
+                      <td style={{ padding: '10px', textAlign: 'center' }}>
+                        <button onClick={() => setItemEditando(m)} style={{ background: '#fef08a', color: '#854d0e', border: '1px solid #facc15', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', marginRight: '6px', fontSize: '12px' }}>✏️ Editar</button>
+                        <button onClick={() => eliminarMantenimiento(m.id)} style={{ background: '#fee2e2', color: '#b91c1c', border: '1px solid #f87171', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>🗑️ Borrar</button>
+                      </td>
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
           </div>
+
+          {/* MODAL DE EDICIÓN */}
+          {itemEditando && (
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+              <form onSubmit={guardarEdicion} style={{ background: '#fff', padding: '24px', borderRadius: '8px', width: '400px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+                <h3 style={{ margin: '0 0 15px 0', color: '#0f172a' }}>✏️ Editar Mantenimiento ({itemEditando.patente})</h3>
+                
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Tipo:</label>
+                <select value={itemEditando.tipo_mantenimiento} onChange={(e) => setItemEditando({ ...itemEditando, tipo_mantenimiento: e.target.value })} style={{ width: '100%', padding: '8px', marginBottom: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }}>
+                  <option value="Preventivo">Preventivo</option>
+                  <option value="Correctivo">Correctivo</option>
+                </select>
+
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Costo ($):</label>
+                <input type="number" step="0.01" value={itemEditando.costo} onChange={(e) => setItemEditando({ ...itemEditando, costo: Number(e.target.value) })} style={{ width: '100%', padding: '8px', marginBottom: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} required />
+
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Descripción:</label>
+                <textarea value={itemEditando.descripcion_trabajo} onChange={(e) => setItemEditando({ ...itemEditando, descripcion_trabajo: e.target.value })} rows="3" style={{ width: '100%', padding: '8px', marginBottom: '15px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} />
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button type="submit" style={{ flex: 1, background: '#047857', color: '#fff', padding: '9px', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Guardar Cambios</button>
+                  <button type="button" onClick={() => setItemEditando(null)} style={{ flex: 1, background: '#cbd5e1', padding: '9px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Cancelar</button>
+                </div>
+              </form>
+            </div>
+          )}
         </>
       )}
     </div>

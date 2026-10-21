@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import TabMantenimiento from './TabMantenimiento';
+import TabCombustible from './TabCombustible';
 
 export default function Panel({ email: emailProp }) {
   const [userEmail, setUserEmail] = useState(emailProp || '');
@@ -710,12 +711,7 @@ export default function Panel({ email: emailProp }) {
 
         {pestanaActiva === 'mantenimientoFlota' && <TabMantenimiento />}
 
-        {pestanaActiva === 'combustible' && (
-          <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '12px' }}>
-            <h3>⛽ Registro y Control de Combustible</h3>
-            <p style={{ color: '#64748b' }}>Módulo vinculado con base de datos Neon.</p>
-          </div>
-        )}
+        {pestanaActiva === 'combustible' && <TabCombustible vehiculos={flotaVehiculos} />}
 
         {pestanaActiva === 'choferesCarnets' && (
           <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '12px' }}>
