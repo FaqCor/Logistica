@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import TabMantenimiento from './TabMantenimiento';
 import TabCombustible from './TabCombustible';
+import TabCarnetsChoferes from './TabCarnetsChoferes';
 
 export default function Panel({ email: emailProp }) {
   const [userEmail, setUserEmail] = useState(emailProp || '');
