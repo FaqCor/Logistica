@@ -21,17 +21,16 @@ export async function GET() {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { nombre, email, vencimiento_licencia, vencimiento_cargas_peligrosas, vencimiento_cargas_generales, vencimiento_psicofisico } = body;
+    const { nombre, vencimiento_licencia, vencimiento_cargas_peligrosas, vencimiento_cargas_generales, vencimiento_psicofisico } = body;
 
     if (!nombre) {
       return NextResponse.json({ success: false, error: 'El nombre es obligatorio' }, { status: 400 });
     }
 
-    // Intentamos actualizar primero el registro existente
+    // Intentamos actualizar primero el registro existente en Neon
     const updateResult = await sql`
       UPDATE chofer_carnets 
-      SET email = ${email || ''},
-          vencimiento_licencia = ${vencimiento_licencia || ''},
+      SET vencimiento_licencia = ${vencimiento_licencia || ''},
           vencimiento_cargas_peligrosas = ${vencimiento_cargas_peligrosas || ''},
           vencimiento_cargas_generales = ${vencimiento_cargas_generales || ''},
           vencimiento_psicofisico = ${vencimiento_psicofisico || ''},
@@ -44,10 +43,10 @@ export async function POST(request) {
     if (updateResult.length > 0) {
       result = updateResult[0];
     } else {
-      // Si no existe, lo insertamos como nuevo
+      // Si no existe, lo insertamos como nuevo registro
       const insertResult = await sql`
-        INSERT INTO chofer_carnets (nombre, email, vencimiento_licencia, vencimiento_cargas_peligrosas, vencimiento_cargas_generales, vencimiento_psicofisico)
-        VALUES (${nombre}, ${email || ''}, ${vencimiento_licencia || ''}, ${vencimiento_cargas_peligrosas || ''}, ${vencimiento_cargas_generales || ''}, ${vencimiento_psicofisico || ''})
+        INSERT INTO chofer_carnets (nombre, vencimiento_licencia, vencimiento_cargas_peligrosas, vencimiento_cargas_generales, vencimiento_psicofisico)
+        VALUES (${nombre}, ${vencimiento_licencia || ''}, ${vencimiento_cargas_peligrosas || ''}, ${vencimiento_cargas_generales || ''}, ${vencimiento_psicofisico || ''})
         RETURNING *;
       `;
       result = insertResult[0];

@@ -42,11 +42,8 @@ export default function TabCarnetsChoferes() {
       return;
     }
 
-    const integrante = personalLista.find(p => p.nombre === choferSeleccionado);
-
     const payload = {
       nombre: choferSeleccionado,
-      email: integrante?.email || '',
       vencimiento_licencia: vencLicencia,
       vencimiento_cargas_peligrosas: vencPeligrosas,
       vencimiento_cargas_generales: vencGenerales,
@@ -91,10 +88,8 @@ export default function TabCarnetsChoferes() {
 
   const guardarEdicionRapida = async (nombre) => {
     try {
-      const integrante = personalLista.find(p => p.nombre === nombre);
       const payload = {
         nombre,
-        email: integrante?.email || '',
         ...formEdit
       };
 
@@ -113,6 +108,31 @@ export default function TabCarnetsChoferes() {
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  // Lógica de Alertas según la fecha actual del sistema
+  const calcularAlerta = (fechaStr) => {
+    if (!fechaStr) return { texto: 'Sin registrar', color: '#64748b', bg: '#f1f5f9' };
+
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
+    const [anio, mes, dia] = fechaStr.split('-');
+    const vencimiento = new Date(anio, mes - 1, dia);
+    vencimiento.setHours(0, 0, 0, 0);
+
+    const diferenciaTiempo = vencimiento - hoy;
+    const diasRestantes = Math.ceil(diferenciaTiempo / (1000 * 60 * 60 * 24));
+
+    if (diasRestantes < 0) {
+      return { texto: `❌ Vencido (${Math.abs(diasRestantes)}d)`, color: '#b91c1c', bg: '#fee2e2' }; // Ya vencido
+    } else if (diasRestantes <= 15) {
+      return { texto: `⚠️ Próximo (${diasRestantes}d)`, color: '#b45309', bg: '#fef3c7' }; // Faltan 15 días o menos
+    } else if (diasRestantes <= 30) {
+      return { texto: `⚡ Por vencer (${diasRestantes}d)`, color: '#d97706', bg: '#fef9c3' }; // Faltan 30 días o menos
+    } else {
+      return { texto: `${fechaStr} (Al día)`, color: '#047857', bg: '#ecfdf5' }; // Vigente
     }
   };
 
@@ -285,47 +305,56 @@ export default function TabCarnetsChoferes() {
                 ) : (
                   reporteCompleto.map((item, idx) => {
                     const esEdit = editandoNombre === item.nombre;
+                    const alertaLic = calcularAlerta(item.vencimiento_licencia);
+                    const alertaPel = calcularAlerta(item.vencimiento_cargas_peligrosas);
+                    const alertaGen = calcularAlerta(item.vencimiento_cargas_generales);
+                    const alertaPsi = calcularAlerta(item.vencimiento_psicofisico);
+
                     return (
                       <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
                         <td style={{ padding: '0.75rem 1rem', fontWeight: 'bold', color: '#0f172a' }}>{item.nombre}</td>
                         <td style={{ padding: '0.75rem 1rem', color: '#64748b' }}>{item.rol}</td>
                         
+                        {/* LICENCIA */}
                         <td style={{ padding: '0.75rem 1rem' }}>
                           {esEdit ? (
                             <input type="date" value={formEdit.vencimiento_licencia} onChange={e => setFormEdit({...formEdit, vencimiento_licencia: e.target.value})} style={{ padding: '0.2rem', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
                           ) : (
-                            <span style={{ color: item.vencimiento_licencia ? '#0f172a' : '#94a3b8' }}>
-                              {item.vencimiento_licencia || 'Sin registrar'}
+                            <span style={{ padding: '4px 8px', borderRadius: '4px', backgroundColor: alertaLic.bg, color: alertaLic.color, fontWeight: '600', display: 'inline-block', fontSize: '0.8rem' }}>
+                              {alertaLic.texto}
                             </span>
                           )}
                         </td>
 
+                        {/* PELIGROSAS */}
                         <td style={{ padding: '0.75rem 1rem' }}>
                           {esEdit ? (
                             <input type="date" value={formEdit.vencimiento_cargas_peligrosas} onChange={e => setFormEdit({...formEdit, vencimiento_cargas_peligrosas: e.target.value})} style={{ padding: '0.2rem', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
                           ) : (
-                            <span style={{ color: item.vencimiento_cargas_peligrosas ? '#0f172a' : '#94a3b8' }}>
-                              {item.vencimiento_cargas_peligrosas || 'Sin registrar'}
+                            <span style={{ padding: '4px 8px', borderRadius: '4px', backgroundColor: alertaPel.bg, color: alertaPel.color, fontWeight: '600', display: 'inline-block', fontSize: '0.8rem' }}>
+                              {alertaPel.texto}
                             </span>
                           )}
                         </td>
 
+                        {/* GENERALES */}
                         <td style={{ padding: '0.75rem 1rem' }}>
                           {esEdit ? (
                             <input type="date" value={formEdit.vencimiento_cargas_generales} onChange={e => setFormEdit({...formEdit, vencimiento_cargas_generales: e.target.value})} style={{ padding: '0.2rem', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
                           ) : (
-                            <span style={{ color: item.vencimiento_cargas_generales ? '#0f172a' : '#94a3b8' }}>
-                              {item.vencimiento_cargas_generales || 'Sin registrar'}
+                            <span style={{ padding: '4px 8px', borderRadius: '4px', backgroundColor: alertaGen.bg, color: alertaGen.color, fontWeight: '600', display: 'inline-block', fontSize: '0.8rem' }}>
+                              {alertaGen.texto}
                             </span>
                           )}
                         </td>
 
+                        {/* PSICOFÍSICO */}
                         <td style={{ padding: '0.75rem 1rem' }}>
                           {esEdit ? (
                             <input type="date" value={formEdit.vencimiento_psicofisico} onChange={e => setFormEdit({...formEdit, vencimiento_psicofisico: e.target.value})} style={{ padding: '0.2rem', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
                           ) : (
-                            <span style={{ color: item.vencimiento_psicofisico ? '#0f172a' : '#94a3b8' }}>
-                              {item.vencimiento_psicofisico || 'Sin registrar'}
+                            <span style={{ padding: '4px 8px', borderRadius: '4px', backgroundColor: alertaPsi.bg, color: alertaPsi.color, fontWeight: '600', display: 'inline-block', fontSize: '0.8rem' }}>
+                              {alertaPsi.texto}
                             </span>
                           )}
                         </td>
