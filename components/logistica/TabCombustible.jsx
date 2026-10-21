@@ -3,10 +3,10 @@ import React, { useState, useEffect } from 'react';
 export default function TabCombustible({ vehiculos = [], onRegistrarCarga }) {
   // Lista fallback por si no pasan datos de vehículos desde el estado global/Neon DB
   const vehiculosLista = vehiculos.length > 0 ? vehiculos : [
-    { id: 1, patente: 'AA-123-BC', modelo: 'Mercedes-Benz Accelo 1016', kmAnterior: 118400, kmActual: 120500, totalLitros: 420 },
-    { id: 2, patente: 'AB-987-XY', modelo: 'Ford Cargo 1722', kmAnterior: 205100, kmActual: 208300, totalLitros: 890 },
-    { id: 3, patente: 'AF-456-ZZ', modelo: 'Scania R450', kmAnterior: 84200, kmActual: 86900, totalLitros: 1150 },
-    { id: 4, patente: 'AD-321-LK', modelo: 'Iveco Tector 170E28', kmAnterior: 154000, kmActual: 155800, totalLitros: 610 }
+    { id: 1, patente: 'AA-123-BC', modelo: 'Mercedes-Benz Accelo 1016', kmAnterior: 118400, kmActual: 120500 },
+    { id: 2, patente: 'AB-987-XY', modelo: 'Ford Cargo 1722', kmAnterior: 205100, kmActual: 208300 },
+    { id: 3, patente: 'AF-456-ZZ', modelo: 'Scania R450', kmAnterior: 84200, kmActual: 86900 },
+    { id: 4, patente: 'AD-321-LK', modelo: 'Iveco Tector 170E28', kmAnterior: 154000, kmActual: 155800 }
   ];
 
   // Estado del formulario
@@ -15,13 +15,15 @@ export default function TabCombustible({ vehiculos = [], onRegistrarCarga }) {
   const [costoTotal, setCostoTotal] = useState('');
   const [estacion, setEstacion] = useState('YPF');
   const [remito, setRemito] = useState('');
+  
+  // Historial local de cargas iniciales independientes por patente
   const [historialCargas, setHistorialCargas] = useState([
     { id: 101, fecha: '2026-10-20', patente: 'AA-123-BC', kmMomento: 120500, litros: 85, costo: 110500, estacion: 'YPF' },
     { id: 102, fecha: '2026-10-19', patente: 'AB-987-XY', kmMomento: 208300, litros: 150, costo: 195000, estacion: 'Shell' },
-    { id: 103, fecha: '2026-10-18', patente: 'Scania R450', patenteText: 'AF-456-ZZ', kmMomento: 86900, litros: 210, costo: 273000, estacion: 'Puma' }
+    { id: 103, fecha: '2026-10-18', patente: 'AF-456-ZZ', kmMomento: 86900, litros: 210, costo: 273000, estacion: 'Puma' }
   ]);
 
-  // Obtener vehículo seleccionado dinámicamente
+  // Obtener vehículo seleccionado dinámicamente de forma estricta
   const vehiculoSeleccionado = vehiculosLista.find(
     (v) => String(v.id) === String(selectedVehiculoId) || v.patente === selectedVehiculoId
   );
@@ -44,25 +46,28 @@ export default function TabCombustible({ vehiculos = [], onRegistrarCarga }) {
       remito
     };
 
+    // Agregamos la carga exclusivamente al historial de esta unidad
     setHistorialCargas([nuevaCarga, ...historialCargas]);
 
-    // Disparar callback si el componente padre actualiza la base de datos Neon
+    // Disparar callback para actualizar la base de datos Neon de manera aislada
     if (onRegistrarCarga) {
-      onRegistrarCarga(vehiculoSeleccionado.id, parseFloat(litros));
+      onRegistrarCarga(vehiculoSeleccionado.id, parseFloat(litros), nuevaCarga);
     }
 
     // Limpiar formulario
     setLitros('');
     setCostoTotal('');
     setRemito('');
-    alert('Carga de combustible registrada exitosamente.');
+    alert(`Carga de ${litros} litros registrada exitosamente para el vehículo ${vehiculoSeleccionado.patente}.`);
   };
 
-  // Cálculo para reporte consolidado por vehículo
+  // Cálculo individual y estricto por vehículo filtrando únicamente por su patente
   const resumenCombustible = vehiculosLista.map((v) => {
     const cargasVehiculo = historialCargas.filter((c) => c.patente === v.patente);
     const litrosHistorial = cargasVehiculo.reduce((acc, curr) => acc + Number(curr.litros), 0);
-    const totalLitrosAcum = (v.totalLitros || 0) + litrosHistorial;
+    
+    // Total de litros acumulados particulares para este vehículo (sin compartir con otros)
+    const totalLitrosAcum = litrosHistorial; 
     const kmRecorridos = (v.kmActual || 0) - (v.kmAnterior || 0);
     const rendimiento = totalLitrosAcum > 0 ? (kmRecorridos / totalLitrosAcum).toFixed(2) : '0.00';
 
@@ -239,7 +244,6 @@ export default function TabCombustible({ vehiculos = [], onRegistrarCarga }) {
                 <span style={{ color: '#475569', fontSize: '0.9rem', fontWeight: '600' }}>Litros Acumulados Cargados:</span>
                 <strong style={{ color: '#059669', fontSize: '1rem' }}>
                   {(
-                    (vehiculoSeleccionado.totalLitros || 0) +
                     historialCargas
                       .filter((c) => c.patente === vehiculoSeleccionado.patente)
                       .reduce((a, b) => a + Number(b.litros), 0)

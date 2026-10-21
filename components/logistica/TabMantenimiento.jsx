@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 export default function TabMantenimiento() {
   const [patentes, setPatentes] = useState([]);
@@ -11,12 +11,38 @@ export default function TabMantenimiento() {
   const [historial, setHistorial] = useState([]);
   const [alertas, setAlertas] = useState([]);
   const [cargando, setCargando] = useState(true);
-
-  // Estado para edición
   const [itemEditando, setItemEditando] = useState(null);
+
+  // Referencias para mantener los valores actualizados dentro de los eventos de salida
+  const formValuesRef = useRef({ patenteSeleccionada, tipoMantenimiento, descripcion, costo, infoVehiculo });
+  useEffect(() => {
+    formValuesRef.current = { patenteSeleccionada, tipoMantenimiento, descripcion, costo, infoVehiculo };
+  }, [patenteSeleccionada, tipoMantenimiento, descripcion, costo, infoVehiculo]);
 
   useEffect(() => {
     cargarDatosIniciales();
+
+    // Evento para detectar cuando el usuario cierra la pestaña o recarga la página
+    const handleBeforeUnload = (e) => {
+      const current = formValuesRef.current;
+      if (current.patenteSeleccionada && current.costo) {
+        // Envío de respaldo ultrarrápido con sendBeacon antes de que cierre la sesión
+        const data = JSON.stringify({
+          patente: current.patenteSeleccionada,
+          tipo_mantenimiento: current.tipoMantenimiento,
+          descripcion_trabajo: current.descripcion || 'Guardado automático por cierre de sesión',
+          costo: parseFloat(current.costo) || 0,
+          km_o_horas_actual: current.infoVehiculo.kmActual,
+          fecha: new Date().toLocaleDateString()
+        });
+        navigator.sendBeacon('/api/mantenimientos', data);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
   }, []);
 
   const cargarDatosIniciales = async () => {
@@ -45,7 +71,6 @@ export default function TabMantenimiento() {
       console.warn("Error al cargar mantenimientos:", error);
     }
     setHistorial(listaMant);
-    
     evaluarAlertas(listaFlota);
     setCargando(false);
   };
@@ -78,7 +103,6 @@ export default function TabMantenimiento() {
     }
 
     const kmActualNum = Number(infoVehiculo.kmActual) || 0;
-    // Intervalo estándar de service cada 10,000 km/horas
     const proximoService = Math.ceil((kmActualNum + 1) / 10000) * 10000;
 
     const nuevoRegistro = {
@@ -128,7 +152,7 @@ export default function TabMantenimiento() {
 
     setHistorial(prev => prev.map(m => m.id === itemEditando.id ? itemEditando : m));
     setItemEditando(null);
-    alert("Mantenimiento actualizado correctamente.");
+    alert("Mantenimiento actualizado correctamente en la base de datos.");
   };
 
   const eliminarMantenimiento = async (id) => {
@@ -141,7 +165,7 @@ export default function TabMantenimiento() {
     }
 
     setHistorial(prev => prev.filter(m => m.id !== id));
-    alert("Registro eliminado.");
+    alert("Registro eliminado de la base de datos.");
   };
 
   const evaluarAlertas = (flotaData = []) => {
@@ -152,7 +176,6 @@ export default function TabMantenimiento() {
         const patente = vehiculo.dominio || vehiculo.patente || 'Unidad';
         const unidad = (vehiculo.tipo_medicion === 'Horas' || vehiculo.es_autoelevador) ? 'Horas' : 'KM';
         
-        // Calculamos el siguiente service (cada 10,000)
         const proximoService = Math.ceil((actual + 1) / 10000) * 10000;
         const diferencia = proximoService - actual;
 
@@ -249,7 +272,7 @@ export default function TabMantenimiento() {
             </div>
           </form>
 
-          {/* Sección Inferior: Alertas Automáticas (Brecha 2500 km) */}
+          {/* Sección de Alertas */}
           <div style={{ marginBottom: '25px' }}>
             <h3 style={{ fontSize: '15px', fontWeight: 'bold', color: '#0f172a', marginBottom: '10px' }}>📢 Alertas Anticipadas de Mantenimiento (Margen 2,500 KM)</h3>
             {alertas.length > 0 ? (
@@ -265,7 +288,7 @@ export default function TabMantenimiento() {
             )}
           </div>
 
-          {/* Historial de Mantenimiento / Auditoría con Edición y Borrado */}
+          {/* Historial con Auditoría, Edición y Borrado */}
           <div>
             <h3 style={{ fontSize: '15px', fontWeight: 'bold', color: '#0f172a', marginBottom: '10px' }}>📋 Historial de Mantenimientos (Auditoría de Costos)</h3>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
@@ -290,7 +313,7 @@ export default function TabMantenimiento() {
                       <td style={{ padding: '10px', fontWeight: 'bold' }}>{m.patente}</td>
                       <td style={{ padding: '10px' }}>
                         <span style={{ padding: '2px 8px', borderRadius: '4px', background: m.tipo_mantenimiento === 'Preventivo' ? '#dcfce7' : '#fee2e2', color: m.tipo_mantenimiento === 'Preventivo' ? '#15803d' : '#b91c1c', fontWeight: 'bold', fontSize: '11px' }}>
-                          {m.tipo_mantenimiento}
+                      {m.tipo_mantenimiento}
                         </span>
                       </td>
                       <td style={{ padding: '10px' }}>{m.descripcion_trabajo || '-'}</td>
@@ -307,7 +330,7 @@ export default function TabMantenimiento() {
             </table>
           </div>
 
-          {/* MODAL DE EDICIÓN */}
+          {/* Modal de Edición */}
           {itemEditando && (
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
               <form onSubmit={guardarEdicion} style={{ background: '#fff', padding: '24px', borderRadius: '8px', width: '400px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
