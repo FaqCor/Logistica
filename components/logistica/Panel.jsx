@@ -714,12 +714,8 @@ export default function Panel({ email: emailProp }) {
 
         {pestanaActiva === 'combustible' && <TabCombustible vehiculos={flotaVehiculos} />}
 
-        {pestanaActiva === 'choferesCarnets' && (
-          <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '12px' }}>
-            <h3>🪪 Carnets y Documentación de Choferes</h3>
-            <p style={{ color: '#64748b' }}>Control de licencias y psicofísicos.</p>
-          </div>
-        )}
+        {/* PESTAÑA DE CARNETS Y DOCUMENTACIÓN CONECTADA */}
+        {pestanaActiva === 'choferesCarnets' && <TabCarnetsChoferes />}
 
         {pestanaActiva === 'actualizarKm' && (
           <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', maxWidth: '600px' }}>
