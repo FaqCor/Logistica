@@ -3,8 +3,8 @@ import { sql } from '@/lib/db';
 
 export async function GET() {
   try {
-    const registros = await sql`SELECT * FROM combustible ORDER BY id DESC`;
-    return NextResponse.json({ success: true, combustible: registros }, { status: 200 });
+    const combustible = await sql`SELECT * FROM combustible ORDER BY id DESC`;
+    return NextResponse.json({ success: true, combustible }, { status: 200 });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
@@ -13,11 +13,11 @@ export async function GET() {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { patente, km_anterior, km_actual, litros_consumidos } = body;
+    const { patente, litros, costo, estacion, remito, km_momento } = body;
 
     const result = await sql`
-      INSERT INTO combustible (patente, km_anterior, km_actual, litros_consumidos, fecha)
-      VALUES (${patente}, ${km_anterior}, ${km_actual}, ${litros_consumidos}, TO_CHAR(NOW(), 'DD/MM/YYYY'))
+      INSERT INTO combustible (patente, litros, costo, estacion, remito, km_momento, fecha)
+      VALUES (${patente}, ${litros}, ${costo || 0}, ${estacion || 'YPF'}, ${remito || ''}, ${km_momento || 0}, TO_CHAR(NOW(), 'DD/MM/YYYY'))
       RETURNING *;
     `;
 
