@@ -3,16 +3,13 @@ import { sql } from '@/lib/db';
 
 export async function GET() {
   try {
-    // Leemos todo el personal (Choferes y Ayudantes) guardado en Neon
     let personalBase = [];
     try {
       personalBase = await sql`SELECT id, nombre, email, rol, telefono FROM personal ORDER BY nombre ASC`;
     } catch (e) {
-      // Fallback por si la tabla se llama choferes
       personalBase = await sql`SELECT id, nombre, email, 'Chofer' as rol, telefono FROM choferes ORDER BY nombre ASC`;
     }
 
-    // Leemos los vencimientos de carnets guardados en Neon
     const carnetsGuardados = await sql`SELECT * FROM chofer_carnets ORDER BY id DESC`;
 
     return NextResponse.json({ success: true, personalBase, carnetsGuardados }, { status: 200 });
@@ -30,23 +27,35 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'El nombre es obligatorio' }, { status: 400 });
     }
 
-    // Insertamos o actualizamos los vencimientos por el nombre/email del chofer
-    const result = await sql`
-      INSERT INTO chofer_carnets (nombre, email, vencimiento_licencia, vencimiento_cargas_peligrosas, vencimiento_cargas_generales, vencimiento_psicofisico)
-      VALUES (${nombre}, ${email || ''}, ${vencimiento_licencia || ''}, ${vencimiento_cargas_peligrosas || ''}, ${vencimiento_cargas_generales || ''}, ${vencimiento_psicofisico || ''})
-      ON CONFLICT (nombre) 
-      DO UPDATE SET 
-        email = EXCLUDED.email,
-        vencimiento_licencia = EXCLUDED.vencimiento_licencia,
-        vencimiento_cargas_peligrosas = EXCLUDED.vencimiento_cargas_peligrosas,
-        vencimiento_cargas_generales = EXCLUDED.vencimiento_cargas_generales,
-        vencimiento_psicofisico = EXCLUDED.vencimiento_psicofisico,
-        fecha_actualizacion = CURRENT_TIMESTAMP
+    // Intentamos actualizar primero el registro existente
+    const updateResult = await sql`
+      UPDATE chofer_carnets 
+      SET email = ${email || ''},
+          vencimiento_licencia = ${vencimiento_licencia || ''},
+          vencimiento_cargas_peligrosas = ${vencimiento_cargas_peligrosas || ''},
+          vencimiento_cargas_generales = ${vencimiento_cargas_generales || ''},
+          vencimiento_psicofisico = ${vencimiento_psicofisico || ''},
+          fecha_actualizacion = CURRENT_TIMESTAMP
+      WHERE nombre = ${nombre}
       RETURNING *;
     `;
 
-    return NextResponse.json({ success: true, data: result[0], message: 'Carnets guardados correctamente en Neon' }, { status: 201 });
+    let result;
+    if (updateResult.length > 0) {
+      result = updateResult[0];
+    } else {
+      // Si no existe, lo insertamos como nuevo
+      const insertResult = await sql`
+        INSERT INTO chofer_carnets (nombre, email, vencimiento_licencia, vencimiento_cargas_peligrosas, vencimiento_cargas_generales, vencimiento_psicofisico)
+        VALUES (${nombre}, ${email || ''}, ${vencimiento_licencia || ''}, ${vencimiento_cargas_peligrosas || ''}, ${vencimiento_cargas_generales || ''}, ${vencimiento_psicofisico || ''})
+        RETURNING *;
+      `;
+      result = insertResult[0];
+    }
+
+    return NextResponse.json({ success: true, data: result, message: 'Guardado correctamente en Neon' }, { status: 201 });
   } catch (error) {
+    console.error("Error al guardar carnets:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

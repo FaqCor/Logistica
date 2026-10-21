@@ -6,14 +6,12 @@ export default function TabCarnetsChoferes() {
   const [carnetsGuardados, setCarnetsGuardados] = useState([]);
   const [cargando, setCargando] = useState(true);
 
-  // Estados del Formulario de Carga
   const [choferSeleccionado, setChoferSeleccionado] = useState('');
   const [vencLicencia, setVencLicencia] = useState('');
   const [vencPeligrosas, setVencPeligrosas] = useState('');
   const [vencGenerales, setVencGenerales] = useState('');
   const [vencPsicofisico, setVencPsicofisico] = useState('');
 
-  // Estado para edición en tabla
   const [editandoNombre, setEditandoNombre] = useState(null);
   const [formEdit, setFormEdit] = useState({});
 
@@ -27,14 +25,8 @@ export default function TabCarnetsChoferes() {
       const res = await fetch('/api/carnets-choferes', { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
-        
-        // Cargar lista de personal de la BD
-        let listaP = data.personalBase || [];
-        setPersonalLista(listaP);
-
-        // Cargar licencias guardadas de la BD
-        let carnets = data.carnetsGuardados || [];
-        setCarnetsGuardados(carnets);
+        setPersonalLista(data.personalBase || []);
+        setCarnetsGuardados(data.carnetsGuardados || []);
       }
     } catch (error) {
       console.error("Error al conectar con Neon:", error);
@@ -46,7 +38,7 @@ export default function TabCarnetsChoferes() {
   const handleGuardarCarnet = async (e) => {
     e.preventDefault();
     if (!choferSeleccionado) {
-      alert('Por favor selecciona un chofer o integrante del personal.');
+      alert('Por favor selecciona un chofer o ayudante.');
       return;
     }
 
@@ -68,8 +60,10 @@ export default function TabCarnetsChoferes() {
         body: JSON.stringify(payload)
       });
 
-      if (res.ok) {
-        alert(`Documentación guardada con éxito en Neon para ${choferSeleccionado}.`);
+      const dataRes = await res.json();
+
+      if (res.ok && dataRes.success) {
+        alert(`Documentación guardada con éxito para ${choferSeleccionado}.`);
         setChoferSeleccionado('');
         setVencLicencia('');
         setVencPeligrosas('');
@@ -77,10 +71,11 @@ export default function TabCarnetsChoferes() {
         setVencPsicofisico('');
         cargarDatosNeon();
       } else {
-        alert('Error al guardar en la base de datos.');
+        alert(`Error al guardar en la base de datos: ${dataRes.error || 'Desconocido'}`);
       }
     } catch (err) {
-      console.error("Error al registrar:", err);
+      console.error("Error de red:", err);
+      alert('Error de conexión al intentar guardar.');
     }
   };
 
@@ -96,8 +91,10 @@ export default function TabCarnetsChoferes() {
 
   const guardarEdicionRapida = async (nombre) => {
     try {
+      const integrante = personalLista.find(p => p.nombre === nombre);
       const payload = {
         nombre,
+        email: integrante?.email || '',
         ...formEdit
       };
 
@@ -108,16 +105,17 @@ export default function TabCarnetsChoferes() {
       });
 
       if (res.ok) {
-        alert(`Documentación de ${nombre} actualizada.`);
+        alert(`Documentación de ${nombre} actualizada correctamente.`);
         setEditandoNombre(null);
         cargarDatosNeon();
+      } else {
+        alert('Error al actualizar los datos.');
       }
     } catch (err) {
       console.error(err);
     }
   };
 
-  // Combinación de todo el personal ingresado con sus carnets guardados
   const mapaCarnets = {};
   carnetsGuardados.forEach(c => { mapaCarnets[c.nombre] = c; });
 
@@ -134,7 +132,6 @@ export default function TabCarnetsChoferes() {
   return (
     <div style={{ padding: '1.5rem', backgroundColor: '#f8fafc', borderRadius: '12px', minHeight: '80vh' }}>
       
-      {/* HEADER */}
       <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
         <span style={{ fontSize: '1.8rem' }}>🪪</span>
         <div>
@@ -151,7 +148,6 @@ export default function TabCarnetsChoferes() {
         <p style={{ color: '#64748b' }}>Sincronizando con base de datos Neon...</p>
       ) : (
         <>
-          {/* FORMULARIO DE ASIGNACIÓN / ACTUALIZACIÓN DE CARNETS */}
           <div style={{ backgroundColor: '#ffffff', padding: '1.25rem', borderRadius: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', marginBottom: '2rem' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: '600', color: '#1e293b', marginBottom: '1rem', borderBottom: '2px solid #e2e8f0', paddingBottom: '0.5rem' }}>
               📝 Registrar / Actualizar Vencimientos de Personal
@@ -159,7 +155,6 @@ export default function TabCarnetsChoferes() {
 
             <form onSubmit={handleGuardarCarnet} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', alignItems: 'end' }}>
               
-              {/* DESPLEGABLE CON EL PERSONAL DE LA BASE DE DATOS */}
               <div style={{ gridColumn: 'span 2' }}>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#475569', marginBottom: '0.3rem' }}>
                   Seleccionar Chofer / Ayudante *
@@ -256,14 +251,13 @@ export default function TabCarnetsChoferes() {
                     cursor: 'pointer'
                   }}
                 >
-                  💾 Guardar Vencimientos en Neon BD
+                  Guardar
                 </button>
               </div>
 
             </form>
           </div>
 
-          {/* TABLA REPORTE GENERAL DE CHOFERES */}
           <div style={{ backgroundColor: '#ffffff', padding: '1.25rem', borderRadius: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', overflowX: 'auto' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: '600', color: '#1e293b', marginBottom: '1rem' }}>
               📋 Control Consolidado de Vencimientos por Chofer
@@ -300,7 +294,7 @@ export default function TabCarnetsChoferes() {
                           {esEdit ? (
                             <input type="date" value={formEdit.vencimiento_licencia} onChange={e => setFormEdit({...formEdit, vencimiento_licencia: e.target.value})} style={{ padding: '0.2rem', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
                           ) : (
-                            <span style={{ color: item.vencimiento_licencia ? '#0f172a' : '#94a3b8', fontWeight: item.vencimiento_licencia ? '500' : 'normal' }}>
+                            <span style={{ color: item.vencimiento_licencia ? '#0f172a' : '#94a3b8' }}>
                               {item.vencimiento_licencia || 'Sin registrar'}
                             </span>
                           )}
@@ -310,7 +304,7 @@ export default function TabCarnetsChoferes() {
                           {esEdit ? (
                             <input type="date" value={formEdit.vencimiento_cargas_peligrosas} onChange={e => setFormEdit({...formEdit, vencimiento_cargas_peligrosas: e.target.value})} style={{ padding: '0.2rem', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
                           ) : (
-                            <span style={{ color: item.vencimiento_cargas_peligrosas ? '#0f172a' : '#94a3b8', fontWeight: item.vencimiento_cargas_peligrosas ? '500' : 'normal' }}>
+                            <span style={{ color: item.vencimiento_cargas_peligrosas ? '#0f172a' : '#94a3b8' }}>
                               {item.vencimiento_cargas_peligrosas || 'Sin registrar'}
                             </span>
                           )}
@@ -320,7 +314,7 @@ export default function TabCarnetsChoferes() {
                           {esEdit ? (
                             <input type="date" value={formEdit.vencimiento_cargas_generales} onChange={e => setFormEdit({...formEdit, vencimiento_cargas_generales: e.target.value})} style={{ padding: '0.2rem', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
                           ) : (
-                            <span style={{ color: item.vencimiento_cargas_generales ? '#0f172a' : '#94a3b8', fontWeight: item.vencimiento_cargas_generales ? '500' : 'normal' }}>
+                            <span style={{ color: item.vencimiento_cargas_generales ? '#0f172a' : '#94a3b8' }}>
                               {item.vencimiento_cargas_generales || 'Sin registrar'}
                             </span>
                           )}
@@ -330,7 +324,7 @@ export default function TabCarnetsChoferes() {
                           {esEdit ? (
                             <input type="date" value={formEdit.vencimiento_psicofisico} onChange={e => setFormEdit({...formEdit, vencimiento_psicofisico: e.target.value})} style={{ padding: '0.2rem', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
                           ) : (
-                            <span style={{ color: item.vencimiento_psicofisico ? '#0f172a' : '#94a3b8', fontWeight: item.vencimiento_psicofisico ? '500' : 'normal' }}>
+                            <span style={{ color: item.vencimiento_psicofisico ? '#0f172a' : '#94a3b8' }}>
                               {item.vencimiento_psicofisico || 'Sin registrar'}
                             </span>
                           )}
