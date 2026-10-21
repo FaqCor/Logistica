@@ -3,14 +3,18 @@ import { sql } from '@/lib/db';
 
 export async function GET() {
   try {
-    let personalBase = [];
-    try {
-      personalBase = await sql`SELECT id, dni, nombre, email, rol, telefono FROM personal ORDER BY nombre ASC`;
-    } catch (e) {
-      personalBase = await sql`SELECT id, '' as dni, nombre, email, 'Chofer' as rol, telefono FROM choferes ORDER BY nombre ASC`;
-    }
+    // Obtenemos el personal exclusivamente de la tabla unificada 'personal'
+    const personalBase = await sql`
+      SELECT id, dni, nombre, email, rol, telefono 
+      FROM personal 
+      ORDER BY nombre ASC
+    `;
 
-    const carnetsGuardados = await sql`SELECT * FROM chofer_carnets ORDER BY id DESC`;
+    // Obtenemos los carnets y vencimientos guardados
+    const carnetsGuardados = await sql`
+      SELECT * FROM chofer_carnets 
+      ORDER BY id DESC
+    `;
 
     return NextResponse.json({ success: true, personalBase, carnetsGuardados }, { status: 200 });
   } catch (error) {
@@ -27,7 +31,7 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'El nombre es obligatorio' }, { status: 400 });
     }
 
-    // Intentamos actualizar primero el registro existente en Neon
+    // Actualizamos o insertamos los vencimientos en chofer_carnets
     const updateResult = await sql`
       UPDATE chofer_carnets 
       SET dni = ${dni || ''},
@@ -44,7 +48,6 @@ export async function POST(request) {
     if (updateResult.length > 0) {
       result = updateResult[0];
     } else {
-      // Si no existe, lo insertamos como nuevo
       const insertResult = await sql`
         INSERT INTO chofer_carnets (dni, nombre, vencimiento_licencia, vencimiento_cargas_peligrosas, vencimiento_cargas_generales, vencimiento_psicofisico)
         VALUES (${dni || ''}, ${nombre}, ${vencimiento_licencia || ''}, ${vencimiento_cargas_peligrosas || ''}, ${vencimiento_cargas_generales || ''}, ${vencimiento_psicofisico || ''})
