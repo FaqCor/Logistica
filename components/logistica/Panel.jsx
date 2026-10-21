@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
+import TabMantenimiento from './TabMantenimiento';
 
 export default function Panel({ email: emailProp }) {
   const [userEmail, setUserEmail] = useState(emailProp || '');
@@ -707,12 +708,7 @@ export default function Panel({ email: emailProp }) {
           </div>
         )}
 
-        {pestanaActiva === 'mantenimientoFlota' && (
-          <div style={{ background: '#fff', padding: '24px', borderRadius: '12px' }}>
-            <h3>🛠️ Control de Mantenimiento Preventivo y Costos</h3>
-            <p style={{ color: '#64748b' }}>Monitoreo automático de kilometrajes y costos de flota.</p>
-          </div>
-        )}
+        {pestanaActiva === 'mantenimientoFlota' && <TabMantenimiento />}
 
         {pestanaActiva === 'combustible' && (
           <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '12px' }}>
