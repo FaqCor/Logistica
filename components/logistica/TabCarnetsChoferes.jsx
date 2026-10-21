@@ -42,7 +42,10 @@ export default function TabCarnetsChoferes() {
       return;
     }
 
+    const integrante = personalLista.find(p => p.nombre === choferSeleccionado);
+
     const payload = {
+      dni: integrante?.dni || '',
       nombre: choferSeleccionado,
       vencimiento_licencia: vencLicencia,
       vencimiento_cargas_peligrosas: vencPeligrosas,
@@ -88,7 +91,9 @@ export default function TabCarnetsChoferes() {
 
   const guardarEdicionRapida = async (nombre) => {
     try {
+      const integrante = personalLista.find(p => p.nombre === nombre);
       const payload = {
+        dni: integrante?.dni || '',
         nombre,
         ...formEdit
       };
@@ -111,7 +116,7 @@ export default function TabCarnetsChoferes() {
     }
   };
 
-  // Lógica de Alertas según la fecha actual del sistema
+  // Motor de alertas con respecto al día de hoy
   const calcularAlerta = (fechaStr) => {
     if (!fechaStr) return { texto: 'Sin registrar', color: '#64748b', bg: '#f1f5f9' };
 
@@ -126,13 +131,13 @@ export default function TabCarnetsChoferes() {
     const diasRestantes = Math.ceil(diferenciaTiempo / (1000 * 60 * 60 * 24));
 
     if (diasRestantes < 0) {
-      return { texto: `❌ Vencido (${Math.abs(diasRestantes)}d)`, color: '#b91c1c', bg: '#fee2e2' }; // Ya vencido
+      return { texto: `❌ Vencido (${Math.abs(diasRestantes)}d)`, color: '#b91c1c', bg: '#fee2e2' };
     } else if (diasRestantes <= 15) {
-      return { texto: `⚠️ Próximo (${diasRestantes}d)`, color: '#b45309', bg: '#fef3c7' }; // Faltan 15 días o menos
+      return { texto: `⚠️ Próximo a vencer (${diasRestantes}d)`, color: '#b45309', bg: '#fef3c7' };
     } else if (diasRestantes <= 30) {
-      return { texto: `⚡ Por vencer (${diasRestantes}d)`, color: '#d97706', bg: '#fef9c3' }; // Faltan 30 días o menos
+      return { texto: `⚡ Por vencer (${diasRestantes}d)`, color: '#d97706', bg: '#fef9c3' };
     } else {
-      return { texto: `${fechaStr} (Al día)`, color: '#047857', bg: '#ecfdf5' }; // Vigente
+      return { texto: `${fechaStr} (Al día)`, color: '#047857', bg: '#ecfdf5' };
     }
   };
 
@@ -142,7 +147,6 @@ export default function TabCarnetsChoferes() {
   const reporteCompleto = personalLista.map(p => ({
     nombre: p.nombre,
     rol: p.rol || 'Chofer',
-    email: p.email || '-',
     vencimiento_licencia: mapaCarnets[p.nombre]?.vencimiento_licencia || '',
     vencimiento_cargas_peligrosas: mapaCarnets[p.nombre]?.vencimiento_cargas_peligrosas || '',
     vencimiento_cargas_generales: mapaCarnets[p.nombre]?.vencimiento_cargas_generales || '',
@@ -203,7 +207,7 @@ export default function TabCarnetsChoferes() {
                   <option value="">-- Selecciona un integrante ({personalLista.length} disponibles) --</option>
                   {personalLista.map((p, idx) => (
                     <option key={idx} value={p.nombre}>
-                      {p.nombre} ({p.rol || 'Chofer'}) - {p.email || 'Sin correo'}
+                      {p.nombre} ({p.rol || 'Chofer'})
                     </option>
                   ))}
                 </select>
@@ -315,7 +319,6 @@ export default function TabCarnetsChoferes() {
                         <td style={{ padding: '0.75rem 1rem', fontWeight: 'bold', color: '#0f172a' }}>{item.nombre}</td>
                         <td style={{ padding: '0.75rem 1rem', color: '#64748b' }}>{item.rol}</td>
                         
-                        {/* LICENCIA */}
                         <td style={{ padding: '0.75rem 1rem' }}>
                           {esEdit ? (
                             <input type="date" value={formEdit.vencimiento_licencia} onChange={e => setFormEdit({...formEdit, vencimiento_licencia: e.target.value})} style={{ padding: '0.2rem', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
@@ -326,7 +329,6 @@ export default function TabCarnetsChoferes() {
                           )}
                         </td>
 
-                        {/* PELIGROSAS */}
                         <td style={{ padding: '0.75rem 1rem' }}>
                           {esEdit ? (
                             <input type="date" value={formEdit.vencimiento_cargas_peligrosas} onChange={e => setFormEdit({...formEdit, vencimiento_cargas_peligrosas: e.target.value})} style={{ padding: '0.2rem', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
@@ -337,7 +339,6 @@ export default function TabCarnetsChoferes() {
                           )}
                         </td>
 
-                        {/* GENERALES */}
                         <td style={{ padding: '0.75rem 1rem' }}>
                           {esEdit ? (
                             <input type="date" value={formEdit.vencimiento_cargas_generales} onChange={e => setFormEdit({...formEdit, vencimiento_cargas_generales: e.target.value})} style={{ padding: '0.2rem', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
@@ -348,7 +349,6 @@ export default function TabCarnetsChoferes() {
                           )}
                         </td>
 
-                        {/* PSICOFÍSICO */}
                         <td style={{ padding: '0.75rem 1rem' }}>
                           {esEdit ? (
                             <input type="date" value={formEdit.vencimiento_psicofisico} onChange={e => setFormEdit({...formEdit, vencimiento_psicofisico: e.target.value})} style={{ padding: '0.2rem', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
@@ -362,11 +362,11 @@ export default function TabCarnetsChoferes() {
                         <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
                           {esEdit ? (
                             <div style={{ display: 'flex', gap: '0.3rem', justifyContent: 'center' }}>
-                              <button onClick={() => guardarEdicionRapida(item.nombre)} style={{ backgroundColor: '#059669', color: '#fff', border: 'none', padding: '0.3rem 0.6rem', borderRadius: '4px', cursor: 'pointer' }}>Guardar</button>
-                              <button onClick={() => setEditandoNombre(null)} style={{ backgroundColor: '#64748b', color: '#fff', border: 'none', padding: '0.3rem 0.6rem', borderRadius: '4px', cursor: 'pointer' }}>X</button>
+                              <button onClick={() => guardarEdicionRapida(item.nombre)} style={{ backgroundColor: '#059669', color: '#fff', border: '0', padding: '0.3rem 0.6rem', borderRadius: '4px', cursor: 'pointer' }}>Guardar</button>
+                              <button onClick={() => setEditandoNombre(null)} style={{ backgroundColor: '#64748b', color: '#fff', border: '0', padding: '0.3rem 0.6rem', borderRadius: '4px', cursor: 'pointer' }}>X</button>
                             </div>
                           ) : (
-                            <button onClick={() => iniciarEdicion(item)} style={{ backgroundColor: '#0f766e', color: '#fff', border: 'none', padding: '0.36rem 0.75rem', borderRadius: '4px', cursor: 'pointer', fontWeight: '600' }}>Editar</button>
+                            <button onClick={() => iniciarEdicion(item)} style={{ backgroundColor: '#0f766e', color: '#fff', border: '0', padding: '0.36rem 0.75rem', borderRadius: '4px', cursor: 'pointer', fontWeight: '600' }}>Editar</button>
                           )}
                         </td>
                       </tr>
