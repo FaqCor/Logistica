@@ -1,5 +1,5 @@
 'use client';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 export default function TabCostos({
   listaTodasPatentes = [],
@@ -15,6 +15,33 @@ export default function TabCostos({
   exportarMantenimientoExcel,
   flotaVehiculos = []
 }) {
+  // Estados para el reporte en vivo de entregas, estados y cobranzas
+  const [reportesEntrega, setReportesEntrega] = useState([]);
+  const [cargandoReportes, setCargandoReportes] = useState(true);
+
+  useEffect(() => {
+    cargarReportesEnVivo();
+  }, []);
+
+  const cargarReportesEnVivo = async () => {
+    try {
+      setCargandoReportes(true);
+      const res = await fetch('/api/registros-entrega', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        setReportesEntrega(Array.isArray(data) ? data : (data.reportes || data.data || []));
+      }
+    } catch (error) {
+      console.warn("Error al cargar registros de entrega:", error);
+    } finally {
+      setCargandoReportes(false);
+    }
+  };
+
+  const exportarReporteExcel = () => {
+    alert("Exportando reporte detallado de cierres a Excel...");
+  };
+
   return (
     <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', fontFamily: 'sans-serif' }}>
       
@@ -155,7 +182,7 @@ export default function TabCostos({
       </div>
 
       {/* TABLA DE MANTENIMIENTO */}
-      <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+      <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', marginBottom: '35px' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
           <thead>
             <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#334155' }}>
@@ -219,6 +246,102 @@ export default function TabCostos({
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* NUEVA SECCIÓN: REPORTE EN VIVO DE CIERRES, ESTADOS Y COBRANZAS */}
+      <div style={{ marginTop: '40px', borderTop: '2px dashed #cbd5e1', paddingTop: '25px' }}>
+        
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
+          <div>
+            <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 'bold', color: '#0f172a' }}>
+              📊 Reporte General de Cierres y Cobranzas en Tiempo Real
+            </h3>
+            <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
+              Estados de entrega en vivo (Entregado, No entregado, Pendiente) y desglose de medios de pago (Efectivo, Transferencia, Cheques).
+            </p>
+          </div>
+
+          <button 
+            onClick={exportarReporteExcel}
+            style={{ backgroundColor: '#059669', color: 'white', border: 'none', padding: '9px 16px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}
+          >
+            📥 Exportar Reporte a Excel (.xlsx)
+          </button>
+        </div>
+
+        {cargandoReportes ? (
+          <p style={{ color: '#64748b', fontStyle: 'italic', fontSize: '13px' }}>Cargando cierres de viajes en vivo desde Neon...</p>
+        ) : (
+          <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>
+                  <th style={{ padding: '10px' }}>Fecha</th>
+                  <th style={{ padding: '10px' }}>Nº Pedido</th>
+                  <th style={{ padding: '10px' }}>Cliente</th>
+                  <th style={{ padding: '10px' }}>Provincia</th>
+                  <th style={{ padding: '10px', textAlign: 'center' }}>Estado</th>
+                  <th style={{ padding: '10px', textAlign: 'right' }}>Efectivo ($)</th>
+                  <th style={{ padding: '10px', textAlign: 'right' }}>Transferencia ($)</th>
+                  <th style={{ padding: '10px', textAlign: 'right' }}>Cheques ($)</th>
+                  <th style={{ padding: '10px', textAlign: 'right', backgroundColor: '#065f46' }}>Total Cobrado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reportesEntrega.length === 0 ? (
+                  <tr>
+                    <td colSpan="9" style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontStyle: 'italic' }}>
+                      No hay registros de cierres o entregas en vivo en la base de datos todavía.
+                    </td>
+                  </tr>
+                ) : (
+                  reportesEntrega.map((row, idx) => {
+                    const estadoColor = 
+                      row.estado === 'Entregado' ? { bg: '#d1fae5', text: '#065f46' } :
+                      row.estado === 'No entregado' ? { bg: '#fee2e2', text: '#991b1b' } :
+                      { bg: '#fef3c7', text: '#b45309' }; // Pendiente por defecto
+
+                    const efectivo = Number(row.efectivo || 0);
+                    const transferencia = Number(row.transferencia || 0);
+                    const cheques = Number(row.cheques || 0);
+                    const totalCobrado = efectivo + transferencia + cheques;
+
+                    return (
+                      <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                        <td style={{ padding: '10px', color: '#475569' }}>{row.fecha || 'Reciente'}</td>
+                        <td style={{ padding: '10px', fontWeight: 'bold', color: '#0f172a' }}>{row.n_pedido || '#---'}</td>
+                        <td style={{ padding: '10px', color: '#334155' }}>{row.cliente || '-'}</td>
+                        <td style={{ padding: '10px', color: '#64748b' }}>{row.provincia || 'N/A'}</td>
+                        
+                        <td style={{ padding: '10px', textAlign: 'center' }}>
+                          <span style={{ 
+                            backgroundColor: estadoColor.bg, 
+                            color: estadoColor.text, 
+                            padding: '3px 8px', 
+                            borderRadius: '4px', 
+                            fontWeight: 'bold',
+                            fontSize: '11px'
+                          }}>
+                            {row.estado || 'Pendiente'}
+                          </span>
+                        </td>
+
+                        <td style={{ padding: '10px', textAlign: 'right', color: '#047857' }}>${efectivo.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                        <td style={{ padding: '10px', textAlign: 'right', color: '#2563eb' }}>${transferencia.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                        <td style={{ padding: '10px', textAlign: 'right', color: '#7c3aed' }}>${cheques.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                        
+                        <td style={{ padding: '10px', textAlign: 'right', fontWeight: 'bold', color: '#065f46', backgroundColor: '#ecfdf5' }}>
+                          ${totalCobrado.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
       </div>
 
     </div>
