@@ -13,18 +13,19 @@ export async function GET() {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { patente, litros, costo, estacion, remito, km_momento } = body;
+    // Recibimos los datos que envía TabCombustible.jsx
+    const { patente, litros, km_momento } = body;
 
+    // Insertamos asignando 'litros' a la columna 'litros_consumidos' 
+    // y 'km_momento' a 'km_actual' según tu estructura de Neon
     const result = await sql`
-      INSERT INTO combustible (patente, litros, costo, estacion, remito, km_momento, fecha)
+      INSERT INTO combustible (patente, km_anterior, km_actual, litros_consumidos, fecha)
       VALUES (
         ${patente}, 
-        ${litros}, 
-        ${costo || 0}, 
-        ${estacion || 'YPF'}, 
-        ${remito || ''}, 
+        0, 
         ${km_momento || 0}, 
-        NOW()
+        ${litros || 0}, 
+        CURRENT_DATE
       )
       RETURNING *;
     `;
