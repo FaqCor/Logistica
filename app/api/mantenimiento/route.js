@@ -3,6 +3,7 @@ import { sql } from '@/lib/db';
 
 export async function GET() {
   try {
+    // Consulta los registros en la tabla 'mantenimientos' de Neon
     const mantenimientos = await sql`SELECT * FROM mantenimientos ORDER BY id DESC`;
     return NextResponse.json({ success: true, mantenimientos }, { status: 200 });
   } catch (error) {
@@ -15,6 +16,7 @@ export async function POST(request) {
     const body = await request.json();
     const { patente, tipo, descripcion, costo, lectura } = body;
 
+    // Inserta tanto Preventivo como Correctivo de forma segura
     const result = await sql`
       INSERT INTO mantenimientos (patente, tipo, descripcion, costo, lectura, fecha)
       VALUES (
