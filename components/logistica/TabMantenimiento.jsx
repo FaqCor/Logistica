@@ -8,12 +8,12 @@ export default function TabMantenimiento() {
   const [tipoMantenimiento, setTipoMantenimiento] = useState('Preventivo');
   const [descripcion, setDescripcion] = useState('');
   const [costo, setCosto] = useState('');
+  const [frecuenciaCustom, setFrecuenciaCustom] = useState('10000'); // Campo de frecuencia personalizado
   const [historial, setHistorial] = useState([]);
   const [alertas, setAlertas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [itemEditando, setItemEditando] = useState(null);
 
-  // Referencias para mantener los valores actualizados dentro de los eventos de salida
   const formValuesRef = useRef({ patenteSeleccionada, tipoMantenimiento, descripcion, costo, infoVehiculo });
   useEffect(() => {
     formValuesRef.current = { patenteSeleccionada, tipoMantenimiento, descripcion, costo, infoVehiculo };
@@ -22,11 +22,9 @@ export default function TabMantenimiento() {
   useEffect(() => {
     cargarDatosIniciales();
 
-    // Evento para detectar cuando el usuario cierra la pestaña o recarga la página
     const handleBeforeUnload = (e) => {
       const current = formValuesRef.current;
       if (current.patenteSeleccionada && current.costo) {
-        // Envío de respaldo ultrarrápido con sendBeacon antes de que cierre la sesión
         const data = JSON.stringify({
           patente: current.patenteSeleccionada,
           tipo_mantenimiento: current.tipoMantenimiento,
@@ -81,17 +79,20 @@ export default function TabMantenimiento() {
     
     if (!patente) {
       setInfoVehiculo({ modelo: '', kmActual: 0, tipoUnidad: 'KM' });
+      setFrecuenciaCustom('10000');
       return;
     }
 
     const vehiculoEncontrado = patentes.find(v => (v.dominio || v.patente) === patente);
     if (vehiculoEncontrado) {
       const esHoras = vehiculoEncontrado.tipo_medicion === 'Horas' || vehiculoEncontrado.es_autoelevador;
+      const freq = vehiculoEncontrado.frecuencia_mto || 10000;
       setInfoVehiculo({
         modelo: vehiculoEncontrado.modelo || 'No especificado',
         kmActual: vehiculoEncontrado.km || vehiculoEncontrado.horas || vehiculoEncontrado.km_actual || 0,
         tipoUnidad: esHoras ? 'Horas' : 'KM'
       });
+      setFrecuenciaCustom(String(freq));
     }
   };
 
@@ -103,7 +104,8 @@ export default function TabMantenimiento() {
     }
 
     const kmActualNum = Number(infoVehiculo.kmActual) || 0;
-    const proximoService = Math.ceil((kmActualNum + 1) / 10000) * 10000;
+    const freqNum = parseFloat(frecuenciaCustom) || 10000;
+    const proximoService = freqNum > 0 ? kmActualNum + freqNum : 0;
 
     const nuevoRegistro = {
       id: Date.now(),
@@ -113,6 +115,7 @@ export default function TabMantenimiento() {
       costo: parseFloat(costo) || 0,
       km_o_horas_actual: kmActualNum,
       proximo_mantenimiento: proximoService,
+      frecuencia_aplicada: freqNum,
       fecha: new Date().toLocaleDateString()
     };
 
@@ -124,7 +127,7 @@ export default function TabMantenimiento() {
       });
 
       if (res.ok) {
-        alert("Mantenimiento registrado y guardado en Neon exitosamente.");
+        alert("Mantenimiento registrado y guardado en Neon exitosamente. Historial anterior conservado.");
       }
     } catch (error) {
       console.warn("Guardado localmente por error de red.");
@@ -175,13 +178,15 @@ export default function TabMantenimiento() {
         const actual = vehiculo.km || vehiculo.horas || vehiculo.km_actual || 0;
         const patente = vehiculo.dominio || vehiculo.patente || 'Unidad';
         const unidad = (vehiculo.tipo_medicion === 'Horas' || vehiculo.es_autoelevador) ? 'Horas' : 'KM';
+        const freq = Number(vehiculo.frecuencia_mto) || 10000;
         
-        const proximoService = Math.ceil((actual + 1) / 10000) * 10000;
-        const diferencia = proximoService - actual;
+        if (freq > 0) {
+          const proximoService = Math.ceil((actual + 1) / freq) * freq;
+          const diferencia = proximoService - actual;
 
-        // Brecha de anticipación configurada en 2,500 km / horas
-        if (diferencia <= 2500 && diferencia >= 0) {
-          listaAlertas.push(`⚠️ ALERTA ANTICIPADA: La unidad ${patente} (${vehiculo.modelo || 'Unidad'}) está a ${diferencia} ${unidad} de su próximo service (${proximoService} ${unidad}). ¡Preparar repuestos!`);
+          if (diferencia <= 2500 && diferencia >= 0) {
+            listaAlertas.push(`⚠️ ALERTA ANTICIPADA: La unidad ${patente} (${vehiculo.modelo || 'Unidad'}) está a ${diferencia} ${unidad} de su próximo service (${proximoService} ${unidad}). ¡Preparar repuestos!`);
+          }
         }
       });
     }
@@ -191,7 +196,7 @@ export default function TabMantenimiento() {
   return (
     <div style={{ background: '#fff', padding: '24px', borderRadius: '12px' }}>
       <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#0f172a', marginBottom: '4px' }}>Control de Mantenimiento Preventivo y Costos</h2>
-      <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '20px' }}>Monitoreo automático con alertas de 2,500 km de anticipación y almacenamiento en Neon BD.</p>
+      <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '20px' }}>Monitoreo automático con frecuencia de service personalizada y almacenamiento en Neon BD.</p>
       
       {cargando ? (
         <p style={{ color: '#64748b', fontSize: '14px' }}>Cargando información de flota...</p>
@@ -252,6 +257,23 @@ export default function TabMantenimiento() {
                   required
                 />
               </div>
+
+              {/* CAMPO DE FRECUENCIA CONFIGURABLE */}
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#b45309', marginBottom: '5px' }}>
+                  ⚙️ Frecuencia del Próximo Service (Cumplidos tantos KM / Horas)
+                </label>
+                <input 
+                  type="number" 
+                  value={frecuenciaCustom} 
+                  onChange={(e) => setFrecuenciaCustom(e.target.value)}
+                  placeholder="Ej: 10000 (Dejar en 0 si no aplica por kilometraje fijo)"
+                  style={{ width: '100%', padding: '9px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '13px', backgroundColor: '#fffbeb', boxSizing: 'border-box' }}
+                />
+                <span style={{ fontSize: '11px', color: '#64748b', marginTop: '3px', display: 'block' }}>
+                  * El sistema calculará automáticamente cuánto falta para el siguiente service sumando esta frecuencia a la lectura actual.
+                </span>
+              </div>
             </div>
 
             <div style={{ marginBottom: '15px' }}>
@@ -267,7 +289,7 @@ export default function TabMantenimiento() {
 
             <div>
               <button type="submit" style={{ background: '#b45309', color: '#fff', padding: '10px 18px', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}>
-                Registrar y Guardar en Neon
+                Registrar y Guardar en Neon (Conservando Historial)
               </button>
             </div>
           </form>
@@ -288,7 +310,7 @@ export default function TabMantenimiento() {
             )}
           </div>
 
-          {/* Historial con Auditoría, Edición y Borrado */}
+          {/* Historial con Auditoría, Edición, Borrado y Cálculo de Faltantes */}
           <div>
             <h3 style={{ fontSize: '15px', fontWeight: 'bold', color: '#0f172a', marginBottom: '10px' }}>📋 Historial de Mantenimientos (Auditoría de Costos)</h3>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
@@ -299,32 +321,42 @@ export default function TabMantenimiento() {
                   <th style={{ padding: '10px' }}>Tipo</th>
                   <th style={{ padding: '10px' }}>Descripción</th>
                   <th style={{ padding: '10px' }}>Lectura</th>
+                  <th style={{ padding: '10px' }}>Próximo Service / Faltante</th>
                   <th style={{ padding: '10px' }}>Costo ($)</th>
                   <th style={{ padding: '10px', textAlign: 'center' }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {!Array.isArray(historial) || historial.length === 0 ? (
-                  <tr><td colSpan="7" style={{ padding: '12px', textAlign: 'center', color: '#64748b' }}>No hay registros de mantenimientos almacenados en Neon aún.</td></tr>
+                  <tr><td colSpan="8" style={{ padding: '12px', textAlign: 'center', color: '#64748b' }}>No hay registros de mantenimientos almacenados en Neon aún.</td></tr>
                 ) : (
-                  historial.map((m) => (
-                    <tr key={m.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '10px' }}>{m.fecha || 'Hoy'}</td>
-                      <td style={{ padding: '10px', fontWeight: 'bold' }}>{m.patente}</td>
-                      <td style={{ padding: '10px' }}>
-                        <span style={{ padding: '2px 8px', borderRadius: '4px', background: m.tipo_mantenimiento === 'Preventivo' ? '#dcfce7' : '#fee2e2', color: m.tipo_mantenimiento === 'Preventivo' ? '#15803d' : '#b91c1c', fontWeight: 'bold', fontSize: '11px' }}>
-                      {m.tipo_mantenimiento}
-                        </span>
-                      </td>
-                      <td style={{ padding: '10px' }}>{m.descripcion_trabajo || '-'}</td>
-                      <td style={{ padding: '10px' }}>{m.km_o_horas_actual || 0}</td>
-                      <td style={{ padding: '10px', fontWeight: 'bold', color: '#b45309' }}>${Number(m.costo || 0).toLocaleString()}</td>
-                      <td style={{ padding: '10px', textAlign: 'center' }}>
-                        <button onClick={() => setItemEditando(m)} style={{ background: '#fef08a', color: '#854d0e', border: '1px solid #facc15', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', marginRight: '6px', fontSize: '12px' }}>✏️ Editar</button>
-                        <button onClick={() => eliminarMantenimiento(m.id)} style={{ background: '#fee2e2', color: '#b91c1c', border: '1px solid #f87171', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>🗑️ Borrar</button>
-                      </td>
-                    </tr>
-                  ))
+                  historial.map((m) => {
+                    const kmActualRow = Number(m.km_o_horas_actual || 0);
+                    const proximoMto = Number(m.proximo_mantenimiento || 0);
+                    const faltante = proximoMto > 0 ? proximoMto - kmActualRow : 0;
+
+                    return (
+                      <tr key={m.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                        <td style={{ padding: '10px' }}>{m.fecha || 'Hoy'}</td>
+                        <td style={{ padding: '10px', fontWeight: 'bold' }}>{m.patente}</td>
+                        <td style={{ padding: '10px' }}>
+                          <span style={{ padding: '2px 8px', borderRadius: '4px', background: m.tipo_mantenimiento === 'Preventivo' ? '#dcfce7' : '#fee2e2', color: m.tipo_mantenimiento === 'Preventivo' ? '#15803d' : '#b91c1c', fontWeight: 'bold', fontSize: '11px' }}>
+                            {m.tipo_mantenimiento}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px' }}>{m.descripcion_trabajo || '-'}</td>
+                        <td style={{ padding: '10px' }}>{kmActualRow.toLocaleString()}</td>
+                        <td style={{ padding: '10px', fontWeight: 'bold', color: faltante <= 2500 && faltante > 0 ? '#b91c1c' : '#047857' }}>
+                          {proximoMto > 0 ? `${proximoMto.toLocaleString()} (Faltan: ${faltante.toLocaleString()})` : 'No aplica'}
+                        </td>
+                        <td style={{ padding: '10px', fontWeight: 'bold', color: '#b45309' }}>${Number(m.costo || 0).toLocaleString()}</td>
+                        <td style={{ padding: '10px', textAlign: 'center' }}>
+                          <button onClick={() => setItemEditando(m)} style={{ background: '#fef08a', color: '#854d0e', border: '1px solid #facc15', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', marginRight: '6px', fontSize: '12px' }}>✏️ Editar</button>
+                          <button onClick={() => eliminarMantenimiento(m.id)} style={{ background: '#fee2e2', color: '#b91c1c', border: '1px solid #f87171', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>🗑️ Borrar</button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
