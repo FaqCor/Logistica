@@ -31,12 +31,23 @@ export async function PUT(request) {
     const body = await request.json();
     const { id, patente, modelo, km_actual, estado } = body;
 
+    // Actualiza de forma inteligente: si no se envían modelo o estado, mantiene los valores actuales usando COALESCE
     const result = await sql`
       UPDATE flota
-      SET modelo = ${modelo}, km_actual = ${km_actual}, estado = ${estado}
-      WHERE id = ${id} OR patente = ${patente}
+      SET 
+        km_actual = COALESCE(${km_actual}, km_actual),
+        modelo = COALESCE(${modelo}, modelo),
+        estado = COALESCE(${estado}, estado)
+      WHERE id = ${id || null} 
+         OR patente = ${patente || null} 
+         OR dominio = ${patente || null}
       RETURNING *;
     `;
+
+    if (result.length === 0) {
+      return NextResponse.json({ success: false, error: "Vehículo no encontrado en la base de datos" }, { status: 404 });
+    }
+
     return NextResponse.json({ success: true, data: result[0] }, { status: 200 });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
