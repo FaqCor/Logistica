@@ -8,11 +8,14 @@ export default function TabMantenimiento() {
   const [tipoMantenimiento, setTipoMantenimiento] = useState('Preventivo');
   const [descripcion, setDescripcion] = useState('');
   const [costo, setCosto] = useState('');
-  const [frecuenciaCustom, setFrecuenciaCustom] = useState('10000'); // Campo de frecuencia personalizado
+  const [frecuenciaCustom, setFrecuenciaCustom] = useState('10000');
   const [historial, setHistorial] = useState([]);
   const [alertas, setAlertas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [itemEditando, setItemEditando] = useState(null);
+  
+  // Nuevo estado para filtrar el historial por patente
+  const [filtroPatente, setFiltroPatente] = useState('');
 
   const formValuesRef = useRef({ patenteSeleccionada, tipoMantenimiento, descripcion, costo, infoVehiculo });
   useEffect(() => {
@@ -127,7 +130,7 @@ export default function TabMantenimiento() {
       });
 
       if (res.ok) {
-        alert("Mantenimiento registrado y guardado en Neon exitosamente. Historial anterior conservado.");
+        alert("Mantenimiento registrado y guardado en Neon exitosamente.");
       }
     } catch (error) {
       console.warn("Guardado localmente por error de red.");
@@ -192,6 +195,12 @@ export default function TabMantenimiento() {
     }
     setAlertas(listaAlertas);
   };
+
+  // Historial filtrado por la patente seleccionada en el combo de búsqueda
+  const historialFiltrado = historial.filter(m => {
+    if (!filtroPatente) return true;
+    return m.patente === filtroPatente;
+  });
 
   return (
     <div style={{ background: '#fff', padding: '24px', borderRadius: '12px' }}>
@@ -258,7 +267,6 @@ export default function TabMantenimiento() {
                 />
               </div>
 
-              {/* CAMPO DE FRECUENCIA CONFIGURABLE */}
               <div style={{ gridColumn: '1 / -1' }}>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#b45309', marginBottom: '5px' }}>
                   ⚙️ Frecuencia del Próximo Service (Cumplidos tantos KM / Horas)
@@ -267,12 +275,9 @@ export default function TabMantenimiento() {
                   type="number" 
                   value={frecuenciaCustom} 
                   onChange={(e) => setFrecuenciaCustom(e.target.value)}
-                  placeholder="Ej: 10000 (Dejar en 0 si no aplica por kilometraje fijo)"
+                  placeholder="Ej: 10000"
                   style={{ width: '100%', padding: '9px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '13px', backgroundColor: '#fffbeb', boxSizing: 'border-box' }}
                 />
-                <span style={{ fontSize: '11px', color: '#64748b', marginTop: '3px', display: 'block' }}>
-                  * El sistema calculará automáticamente cuánto falta para el siguiente service sumando esta frecuencia a la lectura actual.
-                </span>
               </div>
             </div>
 
@@ -289,7 +294,7 @@ export default function TabMantenimiento() {
 
             <div>
               <button type="submit" style={{ background: '#b45309', color: '#fff', padding: '10px 18px', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}>
-                Registrar y Guardar en Neon (Conservando Historial)
+                Registrar y Guardar en Neon
               </button>
             </div>
           </form>
@@ -310,9 +315,36 @@ export default function TabMantenimiento() {
             )}
           </div>
 
-          {/* Historial con Auditoría, Edición, Borrado y Cálculo de Faltantes */}
+          {/* Historial con Filtro por Patente y Botón de Exportar a PDF */}
           <div>
-            <h3 style={{ fontSize: '15px', fontWeight: 'bold', color: '#0f172a', marginBottom: '10px' }}>📋 Historial de Mantenimientos (Auditoría de Costos)</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
+              <h3 style={{ fontSize: '15px', fontWeight: 'bold', color: '#0f172a', margin: 0 }}>📋 Historial de Mantenimientos (Auditoría de Costos)</h3>
+              
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                {/* SELECTOR PARA FILTRAR POR PATENTE */}
+                <select
+                  value={filtroPatente}
+                  onChange={(e) => setFiltroPatente(e.target.value)}
+                  style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff', fontWeight: 'bold', color: '#334155' }}
+                >
+                  <option value="">🔍 Todas las Patentes (Sin filtro)</option>
+                  {patentes.map((v, idx) => {
+                    const pat = v.dominio || v.patente;
+                    return <option key={idx} value={pat}>Patente: {pat}</option>;
+                  })}
+                </select>
+
+                {/* BOTÓN PARA EXPORTAR A PDF / IMPRIMIR */}
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  style={{ background: '#0284c7', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+                >
+                  📄 Exportar a PDF
+                </button>
+              </div>
+            </div>
+
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>
@@ -327,10 +359,10 @@ export default function TabMantenimiento() {
                 </tr>
               </thead>
               <tbody>
-                {!Array.isArray(historial) || historial.length === 0 ? (
-                  <tr><td colSpan="8" style={{ padding: '12px', textAlign: 'center', color: '#64748b' }}>No hay registros de mantenimientos almacenados en Neon aún.</td></tr>
+                {historialFiltrado.length === 0 ? (
+                  <tr><td colSpan="8" style={{ padding: '12px', textAlign: 'center', color: '#64748b' }}>No hay registros de mantenimientos para la patente seleccionada.</td></tr>
                 ) : (
-                  historial.map((m) => {
+                  historialFiltrado.map((m) => {
                     const kmActualRow = Number(m.km_o_horas_actual || 0);
                     const proximoMto = Number(m.proximo_mantenimiento || 0);
                     const faltante = proximoMto > 0 ? proximoMto - kmActualRow : 0;
@@ -375,7 +407,7 @@ export default function TabMantenimiento() {
                 </select>
 
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Costo ($):</label>
-                <input type="number" step="0.01" value={itemEditando.costo} onChange={(e) => setItemEditando({ ...itemEditando, costo: Number(e.target.value) })} style={{ width: '100%', padding: '8px', marginBottom: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} required />
+                <input type="number" step="0.01" value={itemEditando.costo} onChange={(e) => setItemEditando({ ...itemEditando, costo: Number(e.target.value) })} style={{ width: '100%', padding: '8px', marginBottom: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }}" required />
 
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Descripción:</label>
                 <textarea value={itemEditando.descripcion_trabajo} onChange={(e) => setItemEditando({ ...itemEditando, descripcion_trabajo: e.target.value })} rows="3" style={{ width: '100%', padding: '8px', marginBottom: '15px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} />
