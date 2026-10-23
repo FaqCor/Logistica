@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
+import TabRutas from './TabRutas';
 import TabMantenimiento from './TabMantenimiento';
 import TabCombustible from './TabCombustible';
 import TabCarnetsChoferes from './TabCarnetsChoferes';
@@ -346,7 +347,7 @@ export default function Panel({ email: emailProp }) {
 
   const quitarPedidoDeChofer = (nombreChofer, idPedido) => {
     const actual = pedidosPorChofer[nombreChofer] || [];
-    setPedidosPorChofer({ ...pedidosPorChofer, [choferSeleccionado]: actual.filter(p => p.id !== idPedido) });
+    setPedidosPorChofer({ ...pedidosPorChofer, [nombreChofer]: actual.filter(p => p.id !== idPedido) });
   };
 
   const exportarReporteExcel = () => {
@@ -358,6 +359,30 @@ export default function Panel({ email: emailProp }) {
 
   const todosPedidosAsignadosIDs = Object.values(pedidosPorChofer).flat().map(p => p.id);
   const listaPedidosDisponibles = pedidosBD.filter(p => !todosPedidosAsignadosIDs.includes(p.id));
+
+  const toggleSeleccionPedidoCheckbox = (id) => {
+    setPedidosSeleccionadosCheckbox(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const optimizarRutaEspecificaChofer = (nombreCh) => {
+    const actual = pedidosPorChofer[nombreCh] || [];
+    if (actual.length === 0) return alert('No hay pedidos asignados a este chofer para optimizar.');
+    const ordenados = [...actual].sort((a, b) => a.id - b.id);
+    setPedidosPorChofer({ ...pedidosPorChofer, [nombreCh]: ordenados });
+    alert(`⚡ Ruta de ${nombreCh} optimizada por cercanía desde la distribuidora en Maestro Pedernera 1217.`);
+  };
+
+  const enviarRutaWhatsAppEspecifico = (nombreCh) => {
+    const actual = pedidosPorChofer[nombreCh] || [];
+    let msg = `🚛 *HOJA DE RUTA - ${nombreCh}*\n📍 Origen: Maestro Pedernera 1217\n`;
+    actual.forEach((p, i) => {
+      msg += `\n*Parada #${i+1}* - Pedido #${p.id}\n🏢 Cliente: ${p.cliente || p.Cliente || 'Cliente'}\n📍 Dirección: ${p.direccion || p.Direccion || 'Dirección'}\n📦 Bultos: ${p.bultos || 1}\n`;
+      if (p.monto_a_cobrar) msg += `💵 *Cobro a realizar:* $${Number(p.monto_a_cobrar).toLocaleString('es-AR')}\n`;
+    });
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+  };
 
   if (!isLoggedIn) {
     return (
@@ -460,75 +485,31 @@ export default function Panel({ email: emailProp }) {
         </div>
 
         {pestanaActiva === 'gestion' && (
-          <div style={{ background: '#fff', padding: '24px', borderRadius: '12px' }}>
-            <h3>📋 Asignación de Pedidos y Rutas</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', margin: '15px 0' }}>
-              <div>
-                <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Seleccionar Chofer:</label>
-                <select value={choferSeleccionado} onChange={(e) => setChoferSeleccionado(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
-                  {listaChoferes.map((ch, i) => <option key={i} value={ch.nombre}>{ch.nombre}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px' }}>Seleccionar Vehículo:</label>
-                <select value={vehiculoSeleccionado} onChange={(e) => setVehiculoSeleccionado(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
-                  {flotaVehiculos.map((v, i) => <option key={i} value={v.dominio}>{v.dominio} - {v.modelo}</option>)}
-                </select>
-              </div>
-            </div>
-            <h4>☑️ Seleccionar envíos pendientes para asignar a {choferSeleccionado}:</h4>
-            {listaPedidosDisponibles.length === 0 ? <p style={{ color: '#64748b' }}>No hay pedidos pendientes disponibles. Importa una hoja de Excel para cargar los clientes.</p> : (
-              <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid #e2e8f0', padding: '8px', borderRadius: '6px', marginBottom: '12px', background: '#fff' }}>
-                {listaPedidosDisponibles.map(p => (
-                  <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', cursor: 'pointer', marginBottom: '8px', padding: '6px', borderBottom: '1px solid #f1f5f9' }}>
-                    <input 
-                      type="checkbox" 
-                      checked={pedidosSeleccionadosCheckbox.includes(p.id)} 
-                      onChange={() => setPedidosSeleccionadosCheckbox(prev => prev.includes(p.id) ? prev.filter(i => i !== p.id) : [...prev, p.id])} 
-                      style={{ width: '16px', height: '16px', accentColor: '#047857', cursor: 'pointer', margin: 0, flexShrink: 0 }} 
-                    />
-                    <span style={{ lineHeight: '1.4' }}>#{p.id} - ({p.cliente || 'Cliente'}) - ({p.provincia || 'Salta'}) | 📍 {p.direccion || p.Direccion} (Bultos: {p.bultos || 1})</span>
-                  </label>
-                ))}
-              </div>
-            )}
-            
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
-              <button onClick={agregarPedidosSeleccionadosARuta} style={{ background: '#047857', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>➕ Añadir Ruta con los pedidos seleccionados</button>
-              
-              <button onClick={() => {
-                const actuales = pedidosPorChofer[choferSeleccionado] || [];
-                if (actuales.length === 0) return alert('No hay pedidos asignados a este chofer para optimizar.');
-                const optimizados = [...actuales].sort((a, b) => a.id - b.id);
-                setPedidosPorChofer({ ...pedidosPorChofer, [choferSeleccionado]: optimizados });
-                alert(`🚀 Ruta optimizada para ${choferSeleccionado} con el transporte ${vehiculoPorChofer[choferSeleccionado] || vehiculoSeleccionado}. El chofer verá el orden de entrega al iniciar sesión.`);
-              }} style={{ background: '#0284c7', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>⚡ Optimizar Ruta y Orden de Entrega</button>
-            </div>
-
-            <div style={{ marginTop: '20px', padding: '16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-              <h4 style={{ margin: '0 0 10px 0', color: '#0f172a' }}>🚚 Pedidos Asignados a <strong>{choferSeleccionado}</strong> (Vehículo: <span style={{ color: '#047857' }}>{vehiculoPorChofer[choferSeleccionado] || vehiculoSeleccionado}</span>):</h4>
-              {(!pedidosPorChofer[choferSeleccionado] || pedidosPorChofer[choferSeleccionado].length === 0) ? (
-                <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>Aún no se han añadido pedidos a la ruta de este chofer.</p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {pedidosPorChofer[choferSeleccionado].map((ped, idx) => (
-                    <div key={ped.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', padding: '8px 12px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '13px' }}>
-                      <div>
-                        <strong>#{idx + 1} - Pedido #{ped.id}</strong> | {ped.cliente || 'Cliente'} | 📍 {ped.direccion || 'Dirección'} (Bultos: {ped.bultos || 1})
-                      </div>
-                      <button 
-                        onClick={() => quitarPedidoDeChofer(choferSeleccionado, ped.id)} 
-                        style={{ background: '#fee2e2', color: '#b91c1c', border: '1px solid #f87171', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
-                      >
-                        ❌ Quitar de la ruta
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-          </div>
+          <TabRutas
+            esChofer={esChofer}
+            choferSeleccionado={choferSeleccionado}
+            setChoferSeleccionado={setChoferSeleccionado}
+            vehiculoSeleccionado={vehiculoSeleccionado}
+            setVehiculoSeleccionado={setVehiculoSeleccionado}
+            vehiculoPorChofer={vehiculoPorChofer}
+            listaChoferes={listaChoferes}
+            flotaVehiculos={flotaVehiculos}
+            pedidosPorChofer={pedidosPorChofer}
+            pedidosSeleccionadosCheckbox={pedidosSeleccionadosCheckbox}
+            toggleSeleccionPedidoCheckbox={toggleSeleccionPedidoCheckbox}
+            agregarPedidosSeleccionadosARuta={agregarPedidosSeleccionadosARuta}
+            quitarPedidoDeChofer={quitarPedidoDeChofer}
+            optimizarRutaEspecificaChofer={optimizarRutaEspecificaChofer}
+            enviarRutaWhatsAppEspecifico={enviarRutaWhatsAppEspecifico}
+            pedidosArchivadosRuta={pedidosArchivadosRuta}
+            setPedidosArchivadosRuta={setPedidosArchivadosRuta}
+            listaPedidosDisponibles={listaPedidosDisponibles}
+            nombresChoferesConRuta={Object.keys(pedidosPorChofer).filter(ch => (pedidosPorChofer[ch] || []).length > 0)}
+            setModalCierreAbierto={() => {}}
+            setPedidoACerrar={() => {}}
+            setModalCierreFinalViaje={() => {}}
+            fechaFormateada={fechaFormateada}
+          />
         )}
 
         {pestanaActiva === 'reportes' && (
