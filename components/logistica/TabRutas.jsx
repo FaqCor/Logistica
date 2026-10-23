@@ -59,8 +59,8 @@ export default function TabRutas({
     window.open(urlMaps, '_blank');
   };
 
-  // Función optimizada para enviar hoja de ruta limpia y profesional a WhatsApp con enlaces GPS
-  const enviarRutaWhatsAppEspecifico = (nombreCh) => {
+  // Función local optimizada para enviar hoja de ruta limpia y profesional a WhatsApp con enlaces GPS
+  const enviarWhatsAppChofer = (nombreCh) => {
     const actual = pedidosPorChofer[nombreCh] || [];
     if (actual.length === 0) {
       alert(`No hay pedidos asignados a ${nombreCh}.`);
@@ -301,7 +301,7 @@ export default function TabRutas({
                         </div>
                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                           <button onClick={() => optimizarRutaEspecificaChofer(nombreChofer)} style={{ padding: '8px 14px', backgroundColor: '#facc15', color: '#713f12', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>⚡ Optimizar por Cercanía (Pedernera 1217)</button>
-                          <button onClick={() => enviarRutaWhatsAppEspecifico(nombreChofer)} style={{ padding: '8px 14px', backgroundColor: '#064e3b', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>📲 Enviar Orden por WhatsApp al Chofer</button>
+                          <button onClick={() => enviarWhatsAppChofer(nombreChofer)} style={{ padding: '8px 14px', backgroundColor: '#064e3b', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>📲 Enviar Orden por WhatsApp al Chofer</button>
                         </div>
                       </div>
 
