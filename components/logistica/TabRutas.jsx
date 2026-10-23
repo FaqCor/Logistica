@@ -59,6 +59,48 @@ export default function TabRutas({
     window.open(urlMaps, '_blank');
   };
 
+  // Función optimizada para enviar hoja de ruta limpia y profesional a WhatsApp con enlaces GPS
+  const enviarRutaWhatsAppEspecifico = (nombreCh) => {
+    const actual = pedidosPorChofer[nombreCh] || [];
+    if (actual.length === 0) {
+      alert(`No hay pedidos asignados a ${nombreCh}.`);
+      return;
+    }
+
+    const vehiculoCh = vehiculoPorChofer[nombreCh] || vehiculoSeleccionado || 'No asignado';
+    const origenEncoded = encodeURIComponent("Maestro Pedernera 1217, Salta, Argentina");
+
+    let msg = `🚛 *HOJA DE RUTA - ${nombreCh.toUpperCase()}*\n`;
+    msg += `📅 *Fecha:* ${fechaFormateada}\n`;
+    msg += `🚐 *Vehículo:* ${vehiculoCh}\n`;
+    msg += `📍 *Origen:* Maestro Pedernera 1217, Salta\n`;
+    msg += `------------------------------------\n\n`;
+
+    actual.forEach((p, i) => {
+      const clienteNombre = p.cliente || p.Cliente || 'Cliente';
+      const direccionTexto = p.direccion || p.Direccion || 'Dirección no especificada';
+      const provinciaTexto = p.provincia || 'Salta';
+      const bultosCant = p.bultos || 1;
+      const monto = Number(p.monto_a_cobrar || 0);
+
+      const destinoEncoded = encodeURIComponent(`${direccionTexto}, ${provinciaTexto}, Argentina`);
+      const linkMaps = `https://www.google.com/maps/dir/?api=1&origin=${origenEncoded}&destination=${destinoEncoded}&travelmode=driving`;
+
+      msg += `📍 *PARADA #${i + 1} - Pedido #${p.id}*\n`;
+      msg += `🏢 *Cliente:* ${clienteNombre}\n`;
+      msg += `📍 *Dirección:* ${direccionTexto} (${provinciaTexto})\n`;
+      msg += `📦 *Bultos:* ${bultosCant}\n`;
+      msg += `💵 *Cobro:* ${monto > 0 ? `$${monto.toLocaleString('es-AR')}` : 'Sin cobro'}\n`;
+      msg += `🗺️ *Navegar con Maps:*\n${linkMaps}\n\n`;
+    });
+
+    msg += `------------------------------------\n`;
+    msg += `⚠️ *Aviso:* Registrar la entrega o cobro en el sistema al finalizar la parada.`;
+
+    const urlWA = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    window.open(urlWA, '_blank');
+  };
+
   const vehiculosEnUsoPorOtros = Object.entries(vehiculoPorChofer)
     .filter(([nombreCh, patente]) => nombreCh !== choferSeleccionado && (pedidosPorChofer[nombreCh] || []).length > 0)
     .map(([_, patente]) => patente);
