@@ -407,7 +407,7 @@ export default function TabMantenimiento() {
                 </select>
 
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Costo ($):</label>
-                <input type="number" step="0.01" value={itemEditando.costo} onChange={(e) => setItemEditando({ ...itemEditando, costo: Number(e.target.value) })} style={{ width: '100%', padding: '8px', marginBottom: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }}" required />
+                <input type="number" step="0.01" value={itemEditando.costo} onChange={(e) => setItemEditando({ ...itemEditando, costo: Number(e.target.value) })} style={{ width: '100%', padding: '8px', marginBottom: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} required />
 
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Descripción:</label>
                 <textarea value={itemEditando.descripcion_trabajo} onChange={(e) => setItemEditando({ ...itemEditando, descripcion_trabajo: e.target.value })} rows="3" style={{ width: '100%', padding: '8px', marginBottom: '15px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} />
