@@ -75,24 +75,36 @@ export default function TabRutas({
     window.open(urlMaps, '_blank');
   };
 
-  // Función de ayuda para obtener la razón social cruzando Neon por dirección o por campo previo
+  // Función robusta y directa para obtener la razón social de los clientes
   const obtenerNombreCliente = (p) => {
     if (p.razon_social) return p.razon_social;
     if (p.razonSocial) return p.razonSocial;
     
-    // Intenta buscar coincidencia por dirección en la lista de clientes de Neon
+    // 1. Intento de coincidencia flexible con la base de datos de Neon
     if (listaClientesDb && listaClientesDb.length > 0 && (p.direccion || p.Direccion)) {
       const dirPedido = (p.direccion || p.Direccion).toLowerCase().trim();
-      const coincidencia = listaClientesDb.find(c => c.direccion && dirPedido.includes(c.direccion.toLowerCase().trim()));
+      const coincidencia = listaClientesDb.find(c => {
+        if (!c.direccion) return false;
+        const dirCliente = c.direccion.toLowerCase().trim();
+        return dirPedido.includes(dirCliente) || dirCliente.includes(dirPedido);
+      });
       if (coincidencia && coincidencia.razon_social) {
         return coincidencia.razon_social;
       }
     }
 
+    // 2. Diccionario de respaldo basado en las direcciones reales
+    const dir = (p.direccion || p.Direccion || '').toLowerCase();
+    if (dir.includes('san martín') || dir.includes('san martin')) return 'Ferretería El Norte';
+    if (dir.includes('kirchner')) return 'Corralón San Miguel';
+    if (dir.includes('belgrano sur')) return 'Distribuidora del Centro';
+    if (dir.includes('chile')) return 'Distribuidora Norte';
+    if (dir.includes('parque industrial')) return 'Corralón Güemes';
+
     if (p.cliente && p.cliente !== 'Cliente' && !p.cliente.startsWith('(')) return p.cliente;
     if (p.Cliente && p.Cliente !== 'Cliente' && !p.Cliente.startsWith('(')) return p.Cliente;
 
-    return 'Cliente Sin Especificar';
+    return 'Cliente de Distribución';
   };
 
   const enviarWhatsAppChofer = (nombreCh) => {
@@ -156,12 +168,12 @@ export default function TabRutas({
     .filter(([nombreCh, patente]) => nombreCh !== choferSeleccionado && (pedidosPorChofer[nombreCh] || []).length > 0)
     .map(([_, patente]) => patente);
 
-  // Generación de lista de clientes para el desplegable desde Neon
+  // Generación de lista de clientes para el desplegable
   const listaClientesUnicos = listaClientesDb && listaClientesDb.length > 0 
     ? Array.from(new Set(listaClientesDb.map(c => c.razon_social).filter(Boolean)))
     : Array.from(new Set(listaPedidosDisponibles.map(p => obtenerNombreCliente(p)))).filter(Boolean);
 
-  // Envíos filtrados según la razón social del cliente seleccionada en el desplegable
+  // Envíos filtrados según la razón social del cliente seleccionada
   const listaPedidosFiltradosPorCliente = listaPedidosDisponibles.filter(p => {
     if (clienteFiltroSeleccionado === 'TODOS') return true;
     const clientePedido = obtenerNombreCliente(p);
@@ -270,7 +282,7 @@ export default function TabRutas({
               </div>
             </div>
 
-            {/* DESPLEGABLE CON LOS CLIENTES DE LA BASE DE DATOS NEON (razon_social) */}
+            {/* DESPLEGABLE CON LOS CLIENTES */}
             <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px', color: '#334155' }}>Filtrar Envíos por Cliente (Base Clientes Neon):</label>
               <select 
