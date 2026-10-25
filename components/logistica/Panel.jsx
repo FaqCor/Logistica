@@ -417,6 +417,14 @@ export default function Panel({ email: emailProp }) {
     const misPedidos = pedidosPorChofer[choferNombreReal] || [];
     const miVehiculo = vehiculoPorChofer[choferNombreReal] || vehiculoSeleccionado;
 
+    // Función para conectar y abrir Google Maps desde Maestro Pedernera 1217 hasta la parada
+    const abrirGoogleMaps = (direccion, provincia) => {
+      const origenEncoded = encodeURIComponent("Maestro Pedernera 1217, Salta, Argentina");
+      const destinoFormatted = `${direccion}, ${provincia || 'Salta'}, Argentina`;
+      const urlMaps = `https://www.google.com/maps/dir/?api=1&origin=${origenEncoded}&destination=${encodeURIComponent(destinoFormatted)}&travelmode=driving`;
+      window.open(urlMaps, '_blank');
+    };
+
     return (
       <div style={{ backgroundColor: '#f1f5f9', minHeight: '100vh', fontFamily: 'sans-serif' }}>
         <div style={{ backgroundColor: '#064e3b', color: '#fff', padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -434,6 +442,7 @@ export default function Panel({ email: emailProp }) {
               </div>
               <ChecklistTransporte
                 patente={miVehiculo}
+                choferNombre={choferNombreReal}
                 tipoRegistro="SALIDA"
                 onComplete={() => setChecklistSalidaCompletado(true)}
               />
@@ -446,6 +455,7 @@ export default function Panel({ email: emailProp }) {
               </div>
               <ChecklistTransporte
                 patente={miVehiculo}
+                choferNombre={choferNombreReal}
                 tipoRegistro="REGRESO"
                 onComplete={() => {
                   setChecklistRegresoCompletado(true);
@@ -481,11 +491,17 @@ export default function Panel({ email: emailProp }) {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '15px' }}>
                   {misPedidos.map((ped, index) => (
-                    <div key={ped.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                    <div key={ped.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', flexWrap: 'wrap', gap: '10px' }}>
                       <div>
                         <span style={{ background: '#047857', color: '#fff', padding: '3px 8px', borderRadius: '4px', fontWeight: 'bold', fontSize: '12px', marginRight: '10px' }}>Parada #{index + 1}</span>
                         <strong>{ped.cliente || 'Cliente'}</strong> | 📍 {ped.direccion || 'Dirección'} | Provincia: {ped.provincia || 'Salta'} (Bultos: {ped.bultos || 1})
                       </div>
+                      <button 
+                        onClick={() => abrirGoogleMaps(ped.direccion || 'Dirección', ped.provincia)}
+                        style={{ backgroundColor: '#2563eb', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+                      >
+                        🗺️ Ver en Google Maps
+                      </button>
                     </div>
                   ))}
                 </div>
