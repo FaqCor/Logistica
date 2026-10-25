@@ -5,6 +5,7 @@ import TabRutas from './TabRutas';
 import TabMantenimiento from './TabMantenimiento';
 import TabCombustible from './TabCombustible';
 import TabCarnetsChoferes from './TabCarnetsChoferes';
+import ChecklistTransporte from './ChecklistTransporte';
 
 export default function Panel({ email: emailProp }) {
   const [userEmail, setUserEmail] = useState(emailProp || '');
@@ -17,21 +18,23 @@ export default function Panel({ email: emailProp }) {
   const esChofer = userRole === 'chofer' || (userEmail && (userEmail.toLowerCase().includes('chofer') || userEmail.toLowerCase().includes('driver'))); 
   const [pestanaActiva, setPestanaActiva] = useState('gestion');
 
+  // Estados para la gestión de checklists del chofer
+  const [checklistSalidaCompletado, setChecklistSalidaCompletado] = useState(false);
+  const [checklistRegresoCompletado, setChecklistRegresoCompletado] = useState(false);
+  const [mostrandoChecklistRegreso, setMostrandoChecklistRegreso] = useState(false);
+  const [modalCierreFinalViajeChofer, setModalCierreFinalViajeChofer] = useState(false);
+
   const hoy = new Date();
   const fechaFormateada = `${hoy.getDate().toString().padStart(2, '0')}/${(hoy.getMonth() + 1).toString().padStart(2, '0')}/${hoy.getFullYear()}`;
 
   const [pedidosBD, setPedidosBD] = useState([]);
-  const [clientesBD, setClientesBD] = useState([]); // <-- NUEVO ESTADO PARA LOS CLIENTES DE LA DB NEON
+  const [clientesBD, setClientesBD] = useState([]);
   const [pedidosPorChofer, setPedidosPorChofer] = useState({});
   const [vehiculoPorChofer, setVehiculoPorChofer] = useState({});
   const [pedidosSeleccionadosCheckbox, setPedidosSeleccionadosCheckbox] = useState([]);
   const [pedidosArchivadosRuta, setPedidosArchivadosRuta] = useState([]);
 
   const [flotaMantenimientoBD, setFlotaMantenimientoBD] = useState([]);
-  const [nuevaPatenteMto, setNuevaPatenteMto] = useState('');
-  const [nuevoCostoMto, setNuevoCostoMto] = useState('');
-  const [filtroPatenteMto, setFiltroPatenteMto] = useState('');
-
   const [patenteRapidaKm, setPatenteRapidaKm] = useState('');
   const [valorRapidoKm, setValorRapidoKm] = useState('');
 
@@ -120,7 +123,6 @@ export default function Panel({ email: emailProp }) {
         if (data.success && Array.isArray(data.pedidos)) setPedidosBD(data.pedidos);
       }
       
-      // CARGA DE CLIENTES DESDE NEON BD
       const resClientes = await fetch('/api/clientes', { cache: 'no-store' });
       if (resClientes.ok) {
         const dataClientes = await resClientes.json();
@@ -169,12 +171,10 @@ export default function Panel({ email: emailProp }) {
         const workbook = XLSX.read(bstr, { type: 'binary' });
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
-        
         const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
         if (rows && rows.length > 0) {
           const nuevosPedidos = [];
-          
           for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
             if (row && (row[1] || row[2] || row[7])) {
@@ -426,26 +426,82 @@ export default function Panel({ email: emailProp }) {
         </div>
 
         <div style={{ padding: '24px', maxWidth: '800px', margin: '0 auto' }}>
-          <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-            <h2 style={{ color: '#064e3b', marginTop: 0 }}>¡Bienvenido, {choferNombreReal}!</h2>
-            <p style={{ color: '#64748b' }}>Vehículo asignado: <strong style={{ color: '#047857' }}>{miVehiculo}</strong></p>
-            
-            <h3 style={{ marginTop: '20px', borderBottom: '2px solid #e2e8f0', paddingBottom: '8px' }}>🗺️ Orden de Entrega Optimizado para tu Ruta:</h3>
-            {misPedidos.length === 0 ? (
-              <p style={{ color: '#64748b', fontStyle: 'italic' }}>No tienes pedidos asignados en este momento. Consulta con el área de logística.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '15px' }}>
-                {misPedidos.map((ped, index) => (
-                  <div key={ped.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-                    <div>
-                      <span style={{ background: '#047857', color: '#fff', padding: '3px 8px', borderRadius: '4px', fontWeight: 'bold', fontSize: '12px', marginRight: '10px' }}>Parada #{index + 1}</span>
-                      <strong>{ped.cliente || 'Cliente'}</strong> | 📍 {ped.direccion || 'Dirección'} | Provincia: {ped.provincia || 'Salta'} (Bultos: {ped.bultos || 1})
-                    </div>
-                  </div>
-                ))}
+          {!checklistSalidaCompletado ? (
+            <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+              <div style={{ marginBottom: '20px', backgroundColor: '#fef3c7', borderLeft: '4px solid #f59e0b', color: '#92400e', padding: '12px 16px', borderRadius: '6px' }}>
+                <p style={{ margin: 0, fontWeight: 'bold', fontSize: '14px' }}>⚠️ Control Preventivo Obligatorio de Salida</p>
+                <p style={{ margin: '4px 0 0 0', fontSize: '13px' }}>Debes completar el checklist de condiciones del vehículo asignado ({miVehiculo}) antes de visualizar tus entregas.</p>
               </div>
-            )}
-          </div>
+              <ChecklistTransporte
+                patente={miVehiculo}
+                tipoRegistro="SALIDA"
+                onComplete={() => setChecklistSalidaCompletado(true)}
+              />
+            </div>
+          ) : mostrandoChecklistRegreso ? (
+            <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+              <div style={{ marginBottom: '20px', backgroundColor: '#fef3c7', borderLeft: '4px solid #f59e0b', color: '#92400e', padding: '12px 16px', borderRadius: '6px' }}>
+                <p style={{ margin: 0, fontWeight: 'bold', fontSize: '14px' }}>🏁 Control de Regreso</p>
+                <p style={{ margin: '4px 0 0 0', fontSize: '13px' }}>Completa el checklist de revisión del vehículo al finalizar las entregas.</p>
+              </div>
+              <ChecklistTransporte
+                patente={miVehiculo}
+                tipoRegistro="REGRESO"
+                onComplete={() => {
+                  setChecklistRegresoCompletado(true);
+                  setMostrandoChecklistRegreso(false);
+                  setModalCierreFinalViajeChofer(true);
+                }}
+              />
+            </div>
+          ) : (
+            <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
+                <div>
+                  <h2 style={{ color: '#064e3b', margin: 0 }}>¡Bienvenido, {choferNombreReal}!</h2>
+                  <p style={{ color: '#64748b', margin: '4px 0 0 0' }}>Vehículo asignado: <strong style={{ color: '#047857' }}>{miVehiculo}</strong></p>
+                </div>
+                <button 
+                  onClick={() => {
+                    if (!checklistRegresoCompletado) {
+                      setMostrandoChecklistRegreso(true);
+                    } else {
+                      setModalCierreFinalViajeChofer(true);
+                    }
+                  }} 
+                  style={{ backgroundColor: '#047857', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}
+                >
+                  🏁 Finalizar Jornada de Viaje
+                </button>
+              </div>
+              
+              <h3 style={{ marginTop: '20px', borderBottom: '2px solid #e2e8f0', paddingBottom: '8px' }}>🗺️ Orden de Entrega Optimizado para tu Ruta:</h3>
+              {misPedidos.length === 0 ? (
+                <p style={{ color: '#64748b', fontStyle: 'italic' }}>No tienes pedidos asignados en este momento. Consulta con el área de logística.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '15px' }}>
+                  {misPedidos.map((ped, index) => (
+                    <div key={ped.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                      <div>
+                        <span style={{ background: '#047857', color: '#fff', padding: '3px 8px', borderRadius: '4px', fontWeight: 'bold', fontSize: '12px', marginRight: '10px' }}>Parada #{index + 1}</span>
+                        <strong>{ped.cliente || 'Cliente'}</strong> | 📍 {ped.direccion || 'Dirección'} | Provincia: {ped.provincia || 'Salta'} (Bultos: {ped.bultos || 1})
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {modalCierreFinalViajeChofer && (
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '16px' }}>
+              <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '24px', width: '100%', maxWidth: '450px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+                <h3 style={{ margin: '0 0 10px 0', color: '#064e3b' }}>🏁 Jornada de Viaje Finalizada</h3>
+                <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '20px' }}>El checklist de regreso se completó correctamente y la jornada ha concluido con éxito.</p>
+                <button onClick={() => setModalCierreFinalViajeChofer(false)} style={{ width: '100%', backgroundColor: '#047857', color: '#fff', padding: '10px', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Aceptar</button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
