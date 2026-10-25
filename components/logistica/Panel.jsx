@@ -21,6 +21,7 @@ export default function Panel({ email: emailProp }) {
   const fechaFormateada = `${hoy.getDate().toString().padStart(2, '0')}/${(hoy.getMonth() + 1).toString().padStart(2, '0')}/${hoy.getFullYear()}`;
 
   const [pedidosBD, setPedidosBD] = useState([]);
+  const [clientesBD, setClientesBD] = useState([]); // <-- NUEVO ESTADO PARA LOS CLIENTES DE LA DB NEON
   const [pedidosPorChofer, setPedidosPorChofer] = useState({});
   const [vehiculoPorChofer, setVehiculoPorChofer] = useState({});
   const [pedidosSeleccionadosCheckbox, setPedidosSeleccionadosCheckbox] = useState([]);
@@ -73,12 +74,10 @@ export default function Panel({ email: emailProp }) {
     const emailLimpio = loginEmailInput.trim().toLowerCase();
     const passLimpia = loginPasswordInput.trim();
 
-    // Busca al usuario en la lista de personal registrado
     const usuarioEncontrado = personalEmpresa.find(
       (p) => p.email && p.email.trim().toLowerCase() === emailLimpio
     );
 
-    // Valida credenciales
     if (
       (emailLimpio === 'logistica@demo.com' ||
         emailLimpio === 'chofer@demo.com' ||
@@ -87,7 +86,6 @@ export default function Panel({ email: emailProp }) {
     ) {
       setUserEmail(emailLimpio);
       
-      // Determina el rol
       const esRolChofer =
         emailLimpio === 'chofer@demo.com' ||
         (usuarioEncontrado && usuarioEncontrado.rol?.toLowerCase() === 'chofer');
@@ -122,6 +120,14 @@ export default function Panel({ email: emailProp }) {
         if (data.success && Array.isArray(data.pedidos)) setPedidosBD(data.pedidos);
       }
       
+      // CARGA DE CLIENTES DESDE NEON BD
+      const resClientes = await fetch('/api/clientes', { cache: 'no-store' });
+      if (resClientes.ok) {
+        const dataClientes = await resClientes.json();
+        let listaCli = Array.isArray(dataClientes) ? dataClientes : (dataClientes.success ? dataClientes.clientes : []);
+        if (listaCli.length > 0) setClientesBD(listaCli);
+      }
+      
       const resFlota = await fetch('/api/flota', { cache: 'no-store' });
       if (resFlota.ok) {
         const dataFlota = await resFlota.json();
@@ -152,7 +158,6 @@ export default function Panel({ email: emailProp }) {
     }
   }, [patenteRapidaKm]);
 
-  // Función para importar Excel de Clientes leyendo columnas B, C y H exactas por fila
   const importarExcelClientes = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -199,7 +204,6 @@ export default function Panel({ email: emailProp }) {
     reader.readAsBinaryString(file);
   };
 
-  // CRUD Personal con Neon BD
   const agregarPersonal = async (e) => {
     e.preventDefault();
     if (!nuevoNombrePersonal) return alert('Ingresa el nombre del personal.');
@@ -254,7 +258,6 @@ export default function Panel({ email: emailProp }) {
     alert('Integrante eliminado correctamente.');
   };
 
-  // CRUD Flota / Vehículos con Neon BD
   const agregarVehiculo = async (e) => {
     e.preventDefault();
     if (!nuevoDominioVehiculo || !nuevoModeloVehiculo) return alert('Ingresa patente y modelo.');
@@ -504,6 +507,7 @@ export default function Panel({ email: emailProp }) {
             pedidosArchivadosRuta={pedidosArchivadosRuta}
             setPedidosArchivadosRuta={setPedidosArchivadosRuta}
             listaPedidosDisponibles={listaPedidosDisponibles}
+            listaClientesDb={clientesBD} 
             nombresChoferesConRuta={Object.keys(pedidosPorChofer).filter(ch => (pedidosPorChofer[ch] || []).length > 0)}
             setModalCierreAbierto={() => {}}
             setPedidoACerrar={() => {}}
@@ -549,12 +553,10 @@ export default function Panel({ email: emailProp }) {
           </div>
         )}
 
-        {/* PESTAÑA FLOTA Y PERSONAL CON REPORTES INFERIORES Y EDICIÓN/ELIMINACIÓN EN NEON */}
         {pestanaActiva === 'flotaPersonal' && (
           <div style={{ background: '#fff', padding: '24px', borderRadius: '12px' }}>
             <h3>🏢 Administración de Flota y Personal</h3>
             
-            {/* FORMULARIOS SUPERIORES */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '30px' }}>
               <form onSubmit={agregarPersonal} style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                 <h4 style={{ margin: '0 0 10px 0', color: '#047857' }}>➕ Registrar Nuevo Personal</h4>
@@ -581,7 +583,6 @@ export default function Panel({ email: emailProp }) {
               </form>
             </div>
 
-            {/* TABLA DE REPORTE DE PERSONAL (PLANTEL) */}
             <div style={{ marginBottom: '30px' }}>
               <h4 style={{ color: '#047857', marginBottom: '10px' }}>👥 Reporte del Plantel de Personal</h4>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
@@ -613,7 +614,6 @@ export default function Panel({ email: emailProp }) {
               </table>
             </div>
 
-            {/* TABLA DE REPORTE DE VEHÍCULOS Y FLOTA */}
             <div>
               <h4 style={{ color: '#0284c7', marginBottom: '10px' }}>🚚 Reporte de Flota y Vehículos de la Empresa</h4>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
@@ -645,7 +645,6 @@ export default function Panel({ email: emailProp }) {
               </table>
             </div>
 
-            {/* MODAL DE EDICIÓN DE PERSONAL */}
             {itemEditarPersonal && (
               <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
                 <form onSubmit={guardarEdicionPersonal} style={{ background: '#fff', padding: '20px', borderRadius: '8px', width: '380px' }}>
@@ -669,7 +668,6 @@ export default function Panel({ email: emailProp }) {
               </div>
             )}
 
-            {/* MODAL DE EDICIÓN DE VEHÍCULOS */}
             {itemEditarVehiculo && (
               <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
                 <form onSubmit={guardarEdicionVehiculo} style={{ background: '#fff', padding: '20px', borderRadius: '8px', width: '380px' }}>
@@ -687,7 +685,6 @@ export default function Panel({ email: emailProp }) {
                 </form>
               </div>
             )}
-
           </div>
         )}
 
@@ -695,7 +692,6 @@ export default function Panel({ email: emailProp }) {
 
         {pestanaActiva === 'combustible' && <TabCombustible vehiculos={flotaVehiculos} />}
 
-        {/* PESTAÑA DE CARNETS Y DOCUMENTACIÓN CONECTADA */}
         {pestanaActiva === 'choferesCarnets' && <TabCarnetsChoferes />}
 
         {pestanaActiva === 'actualizarKm' && (

@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
+import ChecklistTransporte from './ChecklistTransporte';
 
 export default function TabRutas({
   esChofer,
@@ -35,6 +36,44 @@ export default function TabRutas({
   const nombreChoferActivo = esChofer ? 'Juan Pérez' : choferSeleccionado;
   const pedidosChoferActual = pedidosPorChofer[nombreChoferActivo] || [];
   const listaMostrada = pedidosChoferActual.filter(p => !pedidosArchivadosRuta.includes(p.id));
+
+  // Nuevos estados para la gestión de checklists del chofer
+  const [checklistSalidaCompletado, setChecklistSalidaCompletado] = useState(false);
+  const [checklistRegresoCompletado, setChecklistRegresoCompletado] = useState(false);
+  const [mostrandoChecklistRegreso, setMostrandoChecklistRegreso] = useState(false);
+  const [cargandoChecklistChofer, setCargandoChecklistChofer] = useState(true);
+
+  const patenteChoferActual = vehiculoPorChofer[nombreChoferActivo] || vehiculoSeleccionado || 'Sin Asignar';
+
+  // Verificar en Neon si el chofer ya completó los checklists de salida y regreso
+  useEffect(() => {
+    if (!esChofer) {
+      setCargandoChecklistChofer(false);
+      return;
+    }
+
+    async function verificarEstadoChecklists() {
+      try {
+        const resSalida = await fetch(`/api/checklist?patente=${encodeURIComponent(patenteChoferActual)}&tipo_registro=SALIDA`);
+        const dataSalida = await resSalida.json();
+        if (dataSalida.success && dataSalida.completado) {
+          setChecklistSalidaCompletado(true);
+        }
+
+        const resRegreso = await fetch(`/api/checklist?patente=${encodeURIComponent(patenteChoferActual)}&tipo_registro=REGRESO`);
+        const dataRegreso = await resRegreso.json();
+        if (dataRegreso.success && dataRegreso.completado) {
+          setChecklistRegresoCompletado(true);
+        }
+      } catch (error) {
+        console.error('Error al verificar checklists en Neon:', error);
+      } finally {
+        setCargandoChecklistChofer(false);
+      }
+    }
+
+    verificarEstadoChecklists();
+  }, [esChofer, patenteChoferActual]);
 
   // Estado local para los montos a cobrar por cada pedido disponible
   const [montosACobrar, setMontosACobrar] = useState({});
@@ -110,7 +149,7 @@ export default function TabRutas({
   const enviarWhatsAppChofer = (nombreCh) => {
     const actual = pedidosPorChofer[nombreCh] || [];
     if (actual.length === 0) {
-      alert(`No hay pedidos asignados a ${nombreCh}.`);
+      alert(`No hay pedidos asignados al chofer ${nombreCh}.`);
       return;
     }
 
@@ -194,41 +233,86 @@ export default function TabRutas({
     <div style={{ fontFamily: 'sans-serif', position: 'relative' }}>
       {esChofer ? (
         <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
-            <div>
-              <h2 style={{ margin: 0, fontSize: '20px', color: '#0f172a' }}>🚚 Hoja de Ruta - {nombreChoferActivo}</h2>
-              <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b' }}>Salida desde Hub central: Maestro Pedernera 1217.</p>
+          {cargandoChecklistChofer ? (
+            <div style={{ textAlign: 'center', padding: '30px' }}>
+              <p style={{ color: '#64748b', fontSize: '14px' }}>Verificando condiciones de flota en la base de datos...</p>
             </div>
-            <button onClick={() => setModalCierreFinalViaje(true)} style={{ backgroundColor: '#047857', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}>
-              🏁 Finalizar Jornada de Viaje
-            </button>
-          </div>
-
-          {listaMostrada.length === 0 ? (
-            <div style={{ padding: '30px', textAlign: 'center', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
-              <p style={{ margin: 0, fontSize: '14px', color: '#64748b' }}>No tienes entregas pendientes asignadas por el momento.</p>
+          ) : !checklistSalidaCompletado ? (
+            <div>
+              <div style={{ marginBottom: '20px', backgroundColor: '#fef3c7', borderLeft: '4px solid #f59e0b', color: '#92400e', padding: '12px 16px', borderRadius: '6px' }}>
+                <p style={{ margin: 0, fontWeight: 'bold', fontSize: '14px' }}>⚠️ Control Preventivo Obligatorio</p>
+                <p style={{ margin: '4px 0 0 0', fontSize: '13px' }}>Debes completar el checklist de condiciones del vehículo asignado ({patenteChoferActual}) antes de poder previsualizar tus envíos.</p>
+              </div>
+              <ChecklistTransporte
+                patente={patenteChoferActual}
+                tipoRegistro="SALIDA"
+                onComplete={() => setChecklistSalidaCompletado(true)}
+              />
+            </div>
+          ) : mostrandoChecklistRegreso ? (
+            <div>
+              <div style={{ marginBottom: '20px', backgroundColor: '#fef3c7', borderLeft: '4px solid #f59e0b', color: '#92400e', padding: '12px 16px', borderRadius: '6px' }}>
+                <p style={{ margin: 0, fontWeight: 'bold', fontSize: '14px' }}>🏁 Control de Regreso</p>
+                <p style={{ margin: '4px 0 0 0', fontSize: '13px' }}>Completa el checklist de revisión del vehículo al finalizar las entregas.</p>
+              </div>
+              <ChecklistTransporte
+                patente={patenteChoferActual}
+                tipoRegistro="REGRESO"
+                onComplete={() => {
+                  setChecklistRegresoCompletado(true);
+                  setMostrandoChecklistRegreso(false);
+                  setModalCierreFinalViaje(true);
+                }}
+              />
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {listaMostrada.map((p, index) => (
-                <div key={p.id} style={{ padding: '16px', border: '1px solid #cbd5e1', borderRadius: '8px', backgroundColor: '#ffffff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-                  <div>
-                    <span style={{ backgroundColor: '#0284c7', color: '#fff', fontWeight: 'bold', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', marginRight: '8px' }}>Parada #{index + 1}</span>
-                    <strong style={{ fontSize: '15px' }}>#{p.id} - {obtenerNombreCliente(p)}</strong>
-                    <div style={{ fontSize: '13px', color: '#334155', marginTop: '4px' }}>📍 {p.direccion || p.Direccion} ({p.provincia || 'Salta'})</div>
-                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>📦 Bultos: {p.bultos || 1} {p.monto_a_cobrar ? `| 💵 A Cobrar: $${Number(p.monto_a_cobrar).toLocaleString()}` : ''}</div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    <button onClick={() => abrirGoogleMaps(p.direccion || p.Direccion, p.localidad, p.provincia)} style={{ backgroundColor: '#2563eb', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
-                      🗺️ Ver en Google Maps
-                    </button>
-                    <button onClick={() => { setPedidoACerrar(p); setModalCierreAbierto(true); }} style={{ backgroundColor: '#0284c7', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
-                      📝 Registrar Entrega (Entregado / No entregado)
-                    </button>
-                  </div>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '20px', color: '#0f172a' }}>🚚 Hoja de Ruta - {nombreChoferActivo}</h2>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b' }}>Vehículo asignado: {patenteChoferActual} | Salida desde Hub central: Maestro Pedernera 1217.</p>
                 </div>
-              ))}
+                <button 
+                  onClick={() => {
+                    if (!checklistRegresoCompletado) {
+                      setMostrandoChecklistRegreso(true);
+                    } else {
+                      setModalCierreFinalViaje(true);
+                    }
+                  }} 
+                  style={{ backgroundColor: '#047857', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}
+                >
+                  🏁 Finalizar Jornada de Viaje
+                </button>
+              </div>
+
+              {listaMostrada.length === 0 ? (
+                <div style={{ padding: '30px', textAlign: 'center', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
+                  <p style={{ margin: 0, fontSize: '14px', color: '#64748b' }}>No tienes entregas pendientes asignadas por el momento.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {listaMostrada.map((p, index) => (
+                    <div key={p.id} style={{ padding: '16px', border: '1px solid #cbd5e1', borderRadius: '8px', backgroundColor: '#ffffff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                      <div>
+                        <span style={{ backgroundColor: '#0284c7', color: '#fff', fontWeight: 'bold', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', marginRight: '8px' }}>Parada #{index + 1}</span>
+                        <strong style={{ fontSize: '15px' }}>#{p.id} - {obtenerNombreCliente(p)}</strong>
+                        <div style={{ fontSize: '13px', color: '#334155', marginTop: '4px' }}>📍 {p.direccion || p.Direccion} ({p.provincia || 'Salta'})</div>
+                        <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>📦 Bultos: {p.bultos || 1} {p.monto_a_cobrar ? `| 💵 A Cobrar: $${Number(p.monto_a_cobrar).toLocaleString()}` : ''}</div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        <button onClick={() => abrirGoogleMaps(p.direccion || p.Direccion, p.localidad, p.provincia)} style={{ backgroundColor: '#2563eb', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
+                          🗺️ Ver en Google Maps
+                        </button>
+                        <button onClick={() => { setPedidoACerrar(p); setModalCierreAbierto(true); }} style={{ backgroundColor: '#0284c7', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
+                          📝 Registrar Entrega (Entregado / No entregado)
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
