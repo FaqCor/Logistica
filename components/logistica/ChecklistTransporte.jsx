@@ -29,10 +29,10 @@ export default function ChecklistTransporte({ patente, choferNombre, tipoRegistr
   const [observaciones, setObservaciones] = useState('');
   const [guardando, setGuardando] = useState(false);
 
-  const handleToggle = (key) => {
+  const handleSelect = (key, estado) => {
     setChecklist(prev => ({
       ...prev,
-      [key]: prev[key] === 'OK' ? 'DEFECTUOSO' : 'OK'
+      [key]: estado
     }));
   };
 
@@ -120,26 +120,53 @@ export default function ChecklistTransporte({ patente, choferNombre, tipoRegistr
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {sec.items.map((item) => {
-                const isOk = checklist[item.key] === 'OK';
+                const estadoActual = checklist[item.key];
+                const isOk = estadoActual === 'OK';
+                const isDefectuoso = estadoActual === 'DEFECTUOSO';
+
                 return (
-                  <div key={item.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderBottom: '1px solid #f1f5f9', backgroundColor: '#fafafa', borderRadius: '6px' }}>
-                    <span style={{ fontSize: '13px', color: '#334155', fontWeight: '500' }}>{item.label}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleToggle(item.key)}
-                      style={{
-                        padding: '6px 14px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        color: '#ffffff',
-                        fontWeight: 'bold',
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        backgroundColor: isOk ? '#16a34a' : '#dc2626'
-                      }}
-                    >
-                      {isOk ? '👍 OK' : '👎 Defectuoso'}
-                    </button>
+                  <div key={item.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderBottom: '1px solid #f1f5f9', backgroundColor: '#fafafa', borderRadius: '6px', gap: '15px' }}>
+                    <span style={{ fontSize: '13px', color: '#334155', fontWeight: '500', flex: 1 }}>{item.label}</span>
+                    
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      {/* BOTÓN OK */}
+                      <button
+                        type="button"
+                        onClick={() => handleSelect(item.key, 'OK')}
+                        style={{
+                          padding: '6px 14px',
+                          borderRadius: '6px',
+                          border: isOk ? '2px solid #14532d' : '1px solid #cbd5e1',
+                          color: isOk ? '#ffffff' : '#334155',
+                          fontWeight: 'bold',
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          backgroundColor: isOk ? '#16a34a' : '#f1f5f9',
+                          boxShadow: isOk ? '0 2px 4px rgba(0,0,0,0.1)' : 'none'
+                        }}
+                      >
+                        👍 OK
+                      </button>
+
+                      {/* BOTÓN DEFECTUOSO */}
+                      <button
+                        type="button"
+                        onClick={() => handleSelect(item.key, 'DEFECTUOSO')}
+                        style={{
+                          padding: '6px 14px',
+                          borderRadius: '6px',
+                          border: isDefectuoso ? '2px solid #7f1d1d' : '1px solid #cbd5e1',
+                          color: isDefectuoso ? '#ffffff' : '#334155',
+                          fontWeight: 'bold',
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          backgroundColor: isDefectuoso ? '#dc2626' : '#f1f5f9',
+                          boxShadow: isDefectuoso ? '0 2px 4px rgba(0,0,0,0.1)' : 'none'
+                        }}
+                      >
+                        👎 Defectuoso
+                      </button>
+                    </div>
                   </div>
                 );
               })}
