@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
-// Nota: Ajusta la ruta de importación de tu conexión a Neon si difiere en tu proyecto (ej: '@/lib/db')
-import { pool } from '@/lib/db'; 
+import { Pool } from '@neondatabase/serverless';
+
+// Inicializamos la conexión directamente para evitar errores de importación de pool undefined
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 // 1. Método POST: Para guardar el checklist en Neon cuando el chofer lo envía
 export async function POST(request) {
