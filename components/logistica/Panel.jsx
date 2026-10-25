@@ -417,11 +417,32 @@ export default function Panel({ email: emailProp }) {
     const misPedidos = pedidosPorChofer[choferNombreReal] || [];
     const miVehiculo = vehiculoPorChofer[choferNombreReal] || vehiculoSeleccionado;
 
-    // Función para conectar y abrir Google Maps desde Maestro Pedernera 1217 hasta la parada
-    const abrirGoogleMaps = (direccion, provincia) => {
+    // Función para abrir Google Maps con toda la ruta completa (origen, waypoints y destino final)
+    const abrirGoogleMapsRutaCompleta = () => {
+      if (misPedidos.length === 0) return;
       const origenEncoded = encodeURIComponent("Maestro Pedernera 1217, Salta, Argentina");
-      const destinoFormatted = `${direccion}, ${provincia || 'Salta'}, Argentina`;
-      const urlMaps = `https://www.google.com/maps/dir/?api=1&origin=${origenEncoded}&destination=${encodeURIComponent(destinoFormatted)}&travelmode=driving`;
+      
+      if (misPedidos.length === 1) {
+        const ped = misPedidos[0];
+        const destinoFormatted = `${ped.direccion || 'Dirección'}, ${ped.provincia || 'Salta'}, Argentina`;
+        const urlMaps = `https://www.google.com/maps/dir/?api=1&origin=${origenEncoded}&destination=${encodeURIComponent(destinoFormatted)}&travelmode=driving`;
+        window.open(urlMaps, '_blank');
+        return;
+      }
+
+      const ultimoPedido = misPedidos[misPedidos.length - 1];
+      const destinoFormatted = `${ultimoPedido.direccion || 'Dirección'}, ${ultimoPedido.provincia || 'Salta'}, Argentina`;
+
+      const waypointsArr = misPedidos.slice(0, misPedidos.length - 1).map(p => 
+        encodeURIComponent(`${p.direccion || 'Dirección'}, ${p.provincia || 'Salta'}, Argentina`)
+      );
+
+      let urlMaps = `https://www.google.com/maps/dir/?api=1&origin=${origenEncoded}&destination=${encodeURIComponent(destinoFormatted)}`;
+      if (waypointsArr.length > 0) {
+        urlMaps += `&waypoints=${waypointsArr.join('%7C')}`;
+      }
+      urlMaps += `&travelmode=driving`;
+
       window.open(urlMaps, '_blank');
     };
 
@@ -485,23 +506,28 @@ export default function Panel({ email: emailProp }) {
                 </button>
               </div>
               
-              <h3 style={{ marginTop: '20px', borderBottom: '2px solid #e2e8f0', paddingBottom: '8px' }}>🗺️ Orden de Entrega Optimizado para tu Ruta:</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', marginBottom: '15px', borderBottom: '2px solid #e2e8f0', paddingBottom: '8px', flexWrap: 'wrap', gap: '10px' }}>
+                <h3 style={{ margin: 0 }}>🗺️ Orden de Entrega Optimizado para tu Ruta:</h3>
+                {misPedidos.length > 0 && (
+                  <button 
+                    onClick={abrirGoogleMapsRutaCompleta}
+                    style={{ backgroundColor: '#2563eb', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}
+                  >
+                    🗺️ Abrir Ruta Completa en Google Maps
+                  </button>
+                )}
+              </div>
+
               {misPedidos.length === 0 ? (
                 <p style={{ color: '#64748b', fontStyle: 'italic' }}>No tienes pedidos asignados en este momento. Consulta con el área de logística.</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '15px' }}>
                   {misPedidos.map((ped, index) => (
-                    <div key={ped.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', flexWrap: 'wrap', gap: '10px' }}>
+                    <div key={ped.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
                       <div>
                         <span style={{ background: '#047857', color: '#fff', padding: '3px 8px', borderRadius: '4px', fontWeight: 'bold', fontSize: '12px', marginRight: '10px' }}>Parada #{index + 1}</span>
                         <strong>{ped.cliente || 'Cliente'}</strong> | 📍 {ped.direccion || 'Dirección'} | Provincia: {ped.provincia || 'Salta'} (Bultos: {ped.bultos || 1})
                       </div>
-                      <button 
-                        onClick={() => abrirGoogleMaps(ped.direccion || 'Dirección', ped.provincia)}
-                        style={{ backgroundColor: '#2563eb', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
-                      >
-                        🗺️ Ver en Google Maps
-                      </button>
                     </div>
                   ))}
                 </div>
