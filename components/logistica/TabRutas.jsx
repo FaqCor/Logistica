@@ -37,43 +37,12 @@ export default function TabRutas({
   const pedidosChoferActual = pedidosPorChofer[nombreChoferActivo] || [];
   const listaMostrada = pedidosChoferActual.filter(p => !pedidosArchivadosRuta.includes(p.id));
 
-  // Nuevos estados para la gestión de checklists del chofer
+  // Estados para la gestión de checklists del chofer (Salida inicia en false para mostrarse siempre al iniciar sesión)
   const [checklistSalidaCompletado, setChecklistSalidaCompletado] = useState(false);
   const [checklistRegresoCompletado, setChecklistRegresoCompletado] = useState(false);
   const [mostrandoChecklistRegreso, setMostrandoChecklistRegreso] = useState(false);
-  const [cargandoChecklistChofer, setCargandoChecklistChofer] = useState(true);
 
   const patenteChoferActual = vehiculoPorChofer[nombreChoferActivo] || vehiculoSeleccionado || 'Sin Asignar';
-
-  // Verificar en Neon si el chofer ya completó los checklists de salida y regreso
-  useEffect(() => {
-    if (!esChofer) {
-      setCargandoChecklistChofer(false);
-      return;
-    }
-
-    async function verificarEstadoChecklists() {
-      try {
-        const resSalida = await fetch(`/api/checklist?patente=${encodeURIComponent(patenteChoferActual)}&tipo_registro=SALIDA`);
-        const dataSalida = await resSalida.json();
-        if (dataSalida.success && dataSalida.completado) {
-          setChecklistSalidaCompletado(true);
-        }
-
-        const resRegreso = await fetch(`/api/checklist?patente=${encodeURIComponent(patenteChoferActual)}&tipo_registro=REGRESO`);
-        const dataRegreso = await resRegreso.json();
-        if (dataRegreso.success && dataRegreso.completado) {
-          setChecklistRegresoCompletado(true);
-        }
-      } catch (error) {
-        console.error('Error al verificar checklists en Neon:', error);
-      } finally {
-        setCargandoChecklistChofer(false);
-      }
-    }
-
-    verificarEstadoChecklists();
-  }, [esChofer, patenteChoferActual]);
 
   // Estado local para los montos a cobrar por cada pedido disponible
   const [montosACobrar, setMontosACobrar] = useState({});
@@ -233,11 +202,7 @@ export default function TabRutas({
     <div style={{ fontFamily: 'sans-serif', position: 'relative' }}>
       {esChofer ? (
         <div style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          {cargandoChecklistChofer ? (
-            <div style={{ textAlign: 'center', padding: '30px' }}>
-              <p style={{ color: '#64748b', fontSize: '14px' }}>Verificando condiciones de flota en la base de datos...</p>
-            </div>
-          ) : !checklistSalidaCompletado ? (
+          {!checklistSalidaCompletado ? (
             <div>
               <div style={{ marginBottom: '20px', backgroundColor: '#fef3c7', borderLeft: '4px solid #f59e0b', color: '#92400e', padding: '12px 16px', borderRadius: '6px' }}>
                 <p style={{ margin: 0, fontWeight: 'bold', fontSize: '14px' }}>⚠️ Control Preventivo Obligatorio</p>
