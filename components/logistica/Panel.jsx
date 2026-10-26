@@ -417,7 +417,7 @@ export default function Panel({ email: emailProp }) {
     const misPedidos = pedidosPorChofer[choferNombreReal] || [];
     const miVehiculo = vehiculoPorChofer[choferNombreReal] || vehiculoSeleccionado;
 
-    // Función para abrir Google Maps con origen y destino en Pedernera 1217, y todos los pedidos como waypoints intermedios
+    // Función para abrir Google Maps saliendo de Pedernera 1217, pasando por los pedidos y volviendo a Pedernera 1217
     const abrirGoogleMapsRutaCompleta = () => {
       if (misPedidos.length === 0) return;
       const hubCentral = encodeURIComponent("Maestro Pedernera 1217, Salta, Argentina");
@@ -764,7 +764,7 @@ export default function Panel({ email: emailProp }) {
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Modelo / Unidad:</label>
                   <input type="text" value={itemEditarVehiculo.modelo} onChange={(e) => setItemEditarVehiculo({ ...itemEditarVehiculo, modelo: e.target.value })} style={{ width: '100%', padding: '8px', marginBottom: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} required />
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Medición Actual (KM/Horas):</label>
-                  <input type="number" value={itemEditarVehiculo.km || 0} onChange={(e) => setItemEditarVehiculo({ ...itemEditarVehiculo, km: Number(e.target.value) }))} style={{ width: '100%', padding: '8px', marginBottom: '15px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} required />
+                  <input type="number" value={itemEditarVehiculo.km || 0} onChange={(e) => setItemEditarVehiculo({ ...itemEditarVehiculo, km: Number(e.target.value) })} style={{ width: '100%', padding: '8px', marginBottom: '15px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }} required />
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button type="submit" style={{ flex: 1, background: '#0284c7', color: '#fff', padding: '8px', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Guardar Cambios</button>
                     <button type="button" onClick={() => setItemEditarVehiculo(null)} style={{ flex: 1, background: '#cbd5e1', padding: '8px', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Cancelar</button>
